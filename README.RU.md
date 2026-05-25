@@ -2,7 +2,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.26.1-blue)](https://go.dev/dl/)
 [![Wire DI](https://img.shields.io/badge/DI-Google_Wire-green)](https://github.com/google/wire)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 **goxogen** — это монорепозиторий с тремя CLI-приложениями для генерации Go-кода, визуализации процесса сборки и генерации PostgreSQL-запросов.
 
