@@ -1,7 +1,5 @@
-PROJECT_NAME=xouid
-
 #======================================================
-# goxogen
+# xouid
 #======================================================
 
 APP_NAME=xouid
@@ -49,8 +47,6 @@ build-app-progress:
 
 ## install-app: Установить приложение
 install-app:
-	sudo mkdir -p /var/log/$(APP_LOG_NAME) && \
-	sudo chmod 777 /var/log/$(APP_LOG_NAME) && \
 	sudo ln -sf $(shell pwd)/$(PROJECT_ROOT_PATH)/$(APP_BINARY) $(APP_INSTALL);
 
 ## uninstall-app: Удалить приложение

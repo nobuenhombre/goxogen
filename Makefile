@@ -7,7 +7,7 @@ export GOSUMDB := off
 # команды makefile -
 # если команда совпадет с названием каталога
 #===========================================
-.PHONY: help deps run build all lint test fmt wire build-app-progress-gobp
+.PHONY: help deps wire
 
 help: Makefile
 	@echo "Выберите опцию сборки:"
