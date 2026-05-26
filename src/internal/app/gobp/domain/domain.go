@@ -159,6 +159,9 @@ func (d *AppDomain) Run() error {
 
 		if isBuildCommandLine(line) {
 			step++
+			if step > totalSteps {
+				step = totalSteps
+			}
 			state.Current = step
 			state.Elapsed = int(time.Since(startTime).Seconds())
 			if step > 1 {

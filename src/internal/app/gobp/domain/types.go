@@ -50,7 +50,13 @@ func (p *ProgressState) ProgressBar() string {
 	}
 
 	percent := int((p.Current * 100) / p.Total)
+	if percent > 100 {
+		percent = 100
+	}
 	filled := int((barLength * p.Current) / p.Total)
+	if filled > barLength {
+		filled = barLength
+	}
 
 	bar := "["
 	for i := 0; i < barLength; i++ {
