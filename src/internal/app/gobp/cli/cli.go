@@ -19,6 +19,7 @@ type Config struct {
 	Out         string `cli:"out[output binary path]:string=./build/app"`
 	Verbose     bool   `cli:"verbose[show full build output]:bool=false"`
 	FullRebuild bool   `cli:"full-rebuild[force full rebuild with go build -a]:bool=false"`
+	Version     bool   `cli:"version[Show version and exit]:bool=false"`
 }
 
 // GetBinary returns the Go package path or directory to build.

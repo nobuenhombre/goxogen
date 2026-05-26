@@ -29,7 +29,7 @@ func New(cliConfig cli.Service) (DomainService, error) {
 	}, nil
 }
 
-// countSteps runs go build -n (dry-run) to count the total number of mkdir steps.
+// countSteps runs go build -n (dry-run) to count the total number of build steps.
 func countSteps(args []string) (int, error) {
 	// Insert -n right after "build" (args[0] = "build")
 	dryArgs := make([]string, 0, len(args)+1)
@@ -49,11 +49,20 @@ func countSteps(args []string) (int, error) {
 		return 0, ge.Pin(err)
 	}
 
+	// Use large buffer — go build -n with CGO and long gcc invocations can
+	// produce lines that exceed the default 64KB scanner limit, causing
+	// the scanner to silently stop and the build command to hang on write.
 	steps := 0
 	scanner := bufio.NewScanner(out)
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "mkdir") {
+		// Count all command lines (mkdir, gcc, ar, compile, link, cd, cat, etc.)
+		// — not just mkdir. This gives a smooth, meaningful progress estimate.
+		if strings.HasPrefix(line, "mkdir") ||
+			strings.HasPrefix(line, "/") || // absolute path = gcc/ar/compile/link
+			strings.HasPrefix(line, "cd ") ||
+			strings.HasPrefix(line, "cat ") {
 			steps++
 		}
 	}
@@ -62,7 +71,20 @@ func countSteps(args []string) (int, error) {
 		return 0, ge.Pin(fmt.Errorf("failed to count build steps: %v", err))
 	}
 
-	return steps, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return steps, ge.Pin(fmt.Errorf("scanner error: %v (partial count: %d)", err, steps))
+	}
+
+	return steps, nil
+}
+
+// isBuildCommandLine returns true if the line from go build -x output
+// represents a command execution (mkdir, compile, link, catalog, etc.).
+func isBuildCommandLine(line string) bool {
+	return strings.HasPrefix(line, "mkdir") ||
+		strings.HasPrefix(line, "/") ||
+		strings.HasPrefix(line, "cd ") ||
+		strings.HasPrefix(line, "cat ")
 }
 
 // Run executes the build progress display.
@@ -135,7 +157,7 @@ func (d *AppDomain) Run() error {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if strings.HasPrefix(line, "mkdir") {
+		if isBuildCommandLine(line) {
 			step++
 			state.Current = step
 			state.Elapsed = int(time.Since(startTime).Seconds())
