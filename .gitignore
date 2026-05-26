@@ -1,8 +1,4 @@
+.idea
 /bin/gobp/linux/gobp
 /bin/goxogen/linux/goxogen
 /bin/xouid/linux/xouid
-/.idea/.gitignore
-/.idea/go.imports.xml
-/.idea/goxogen.iml
-/.idea/modules.xml
-/.idea/vcs.xml

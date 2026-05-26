@@ -10,9 +10,9 @@
 
 | Application | Version | Description |
 |-------------|---------|-------------|
-| **goxogen** | v0.1.0 | Code generation scaffolder — generates Go code from YAML templates |
-| **gobp** | v0.4.0 | Build pipeline with progress bar — wraps `go build` with visual progress |
-| **xouid** | v0.1.0 | PostgreSQL XOID query generator — generates typed Go query functions from SQL |
+| **goxogen** | v0.1.0 | Code generation scaffolder — generates Go code from YAML templates and runs a full XO code generation pipeline |
+| **gobp** | v0.6.0 | Build pipeline with progress bar — wraps `go build` with visual progress, step counting, and ETA |
+| **xouid** | v0.1.0 | PostgreSQL XOID query generator — generates typed Go functions from UPDATE/INSERT/DELETE SQL with EXPLAIN validation |
 
 ---
 
@@ -20,12 +20,12 @@
 
 ```
 goxogen/
-├── AGENTS.md                 # Dev agent context
-├── Makefile                  # Root build targets
+├── AGENTS.md                 # Dev agent context (30+ nested AGENTS.md files)
+├── Makefile                  # Root build targets (deps, wire)
 ├── go.mod                    # Go module (Go 1.26.1)
 ├── src/
 │   ├── cmd/
-│   │   ├── goxogen/          # Scaffolder CLI
+│   │   ├── goxogen/          # Scaffolder CLI (runtype: init, xo)
 │   │   ├── gobp/             # Build progress CLI
 │   │   └── xouid/            # XOID query generator CLI
 │   └── internal/
@@ -38,8 +38,13 @@ goxogen/
 ├── bin/                      # Compiled binaries (gitkeep'd)
 ├── goxogen                   # Compiled goxogen binary
 ├── gobp                      # Compiled gobp binary
-└── xouid                     # Compiled xouid binary
+├── xouid                     # Compiled xouid binary
+├── README.md                 # English docs
+├── README.RU.md              # Russian docs
+└── LICENSE                   # Apache 2.0
 ```
+
+Every package has its own AGENTS.md describing purpose, key types, Wire integration, and change rules.
 
 ## Technology Stack
 
@@ -50,9 +55,19 @@ goxogen/
 | CLI Parsing | nobuenhombre/suikat/pkg/clivar | v0.0.170 |
 | PostgreSQL | jackc/pgx/v5 | v5.9.2 |
 | YAML | gopkg.in/yaml.v3 | v3.0.1 |
+| UUID | github.com/google/uuid | v1.6.0 |
 | Error Wrapping | suikat/pkg/ge (ge.Pin) | — |
 | File I/O | suikat/pkg/fico | — |
 | File Utils | suikat/pkg/futi | — |
+| DB Abstraction | suikat/pkg/db/connectors/postgres-pgx-db | — |
+
+## Features
+
+- **Code Scaffolding** — generate Go project structures from YAML configs with `goxogen -runtype=init`
+- **XO Code Generation Pipeline** — 7-step pipeline: schema → models → query functions (one/many/UID) → repo extraction → formatting/vetting
+- **Build Progress Bar** — `gobp` wraps `go build` with dry-run step counting, ANSI progress bar, time/ETA display, and error aggregation
+- **PostgreSQL Query Generation** — `xouid` validates SQL via EXPLAIN, parses `%%param type%%` descriptors, and generates typed Go query functions using Go templates
+- **Google Wire DI** — clean dependency injection across all three apps with proper cleanup ordering
 
 ## Getting Started
 
@@ -85,7 +100,6 @@ go test ./... -v
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-runtype` | `init` | Run type |
 | `-config` | `config.yaml` | Path to YAML config |
 | `-log` | `""` | Path to log file |
 | `-version` | `false` | Show version and exit |
@@ -115,6 +129,49 @@ go test ./... -v
 | `-verbose` | `false` | Don't show hello message |
 | `-version` | `false` | Show version and exit |
 
+## XO Code Generation Pipeline
+
+When goxogen runs with `-runtype=xo -config=config.yaml`, it executes a full 7-step pipeline that generates Go code from a PostgreSQL database schema:
+
+### Config YAML Structure
+
+```yaml
+config:
+  db:
+    host: localhost
+    port: 5432
+    name: dbname
+    user: user
+    pass: pass
+    sslmode: disable
+    pool_max_conns: 10
+    backups:
+      path: /path/to/backups
+  codegen:
+    path: ./gen           # Output directory
+    package: gen           # Go package name
+    queries: ./queries     # SQL query files directory
+    templates: ./templates # xo templates directory
+    ignore_fields: created_at,updated_at
+```
+
+### Pipeline Steps
+
+| Step | Action | Description |
+|------|--------|-------------|
+| 1 | **runXO** | Deletes old `.xo.go` / `.xouid.go`, runs xo for models + queries (one/many/uid), removes stored procedures |
+| 2 | **replaceInterfaceToAny** | Replaces `interface{}` with `any` in all generated files |
+| 3 | **glueXoXouid** | Merges `.xo.go` + `.xouid.go` → `.xo-xouid.go` temporary files |
+| 4 | **extractRepo** | Extracts `@repo-start`/`@repo-end` blocks → `*-repo.xo.go` repository files |
+| 5 | **removeXoXouid** | Deletes temporary `.xo-xouid.go` files |
+| 6 | **cleanXoXouidSourceBlocks** | Removes `@repo-start`/`@repo-end` markers from `.xo.go` and `.xouid.go` |
+| 7 | **goFormatCode** | Runs `go fmt`, `goimports -w`, `go vet` for clean output |
+
+SQL query files follow the naming convention `TypeName-FuncName.sql` and are organized in subdirectories:
+- `queries/one/` — single-row queries
+- `queries/many/` — multi-row queries
+- `queries/uid/` — UPDATE/INSERT/DELETE queries (processed by xouid)
+
 ## Dependency Injection (Google Wire)
 
 Each application uses Google Wire for dependency injection. Wire DI graph:
@@ -128,6 +185,7 @@ xouid:    cli ProviderSet → postgres ProviderSet → domain ProviderSet → Ap
 - All `provider.go` files export `var ProviderSet = wire.NewSet(ProvideXxx)`
 - `wire.go` in `package main`: only `wire.Build()`, no application logic
 - `wire_gen.go` is auto-generated — never edit manually
+- All `Provide*` functions return `(T, func(), error)` for proper cleanup chaining
 
 ## Deployment
 
@@ -144,7 +202,7 @@ cd service/deployments/goxogen/linux && make build-app-progress
 Build settings:
 - `CGO_ENABLED=0`, `GOOS=linux`, `GOARCH=amd64`
 - ldflags `-s -w` for smaller binaries
-- Installed to `/usr/local/bin/{app}` with logs at `/var/log/{app}/`
+- Installed via symlink to `/usr/local/bin/{app}`
 
 ## Development
 
@@ -155,10 +213,18 @@ Build settings:
 - **Aliases:** conflicting package names are aliased (e.g., `domainapp`, `pgxdb`, `configapp`, `logfile`)
 - **Versioning:** only via `-version` flag before Wire init (avoids unnecessary DB/log connections)
 - **Linking:** ldflags via `GOFLAGS` environment variable, not hardcoded
+- **Nested AGENTS.md:** read the relevant AGENTS.md before modifying any package
 
 ### Common Pitfalls
 
 - `go vet file.go` produces `undefined: Service` in provider.go — always use `go vet ./...`
 - gobp progress bar `\r` conflicts with compiler error output — print `\n` before error lines
-- xouid templates expect `xouid_package.go.tpl` and `xouid_query.go.tpl` in `-template-path`
+- gobp scanner buffer must be at least 1MB (`scanner.Buffer(make([]byte, 64*1024), 1024*1024)`) for long CGO lines
+- gobp dry-run (`go build -n`) may count fewer steps than actual (`go build -x`) due to CGO diagnostics — progress bar caps at 100%
+- xouid templates expect `xouid_package.go.tpl` (template name: `xouidpackage`) and `xouid_query.go.tpl` (template name: `xouidquery`) in `-template-path`
+- xouid SQL parameters use `%%paramName type%%` format (types: int, int32, int64, float, float32, float64, string, bool, uuid.UUID, time.Time, arrays)
 - `bin/.gitkeep`: don't remove binary directories (deployment Makefiles reference them)
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE)

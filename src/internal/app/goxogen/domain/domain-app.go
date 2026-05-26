@@ -17,8 +17,3 @@ func New(cliConfig cli.Service) DomainService {
 		Cli: cliConfig.(*cli.Config),
 	}
 }
-
-func (d *AppDomain) Run() error {
-	// Add your domain logic here
-	return nil
-}
