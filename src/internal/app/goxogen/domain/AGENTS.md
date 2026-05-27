@@ -10,6 +10,8 @@
 |------|------------|
 | `domain-app.go` | `DomainService` interface + `AppDomain` + `New(cliConfig)` |
 | `provider.go` | `ProviderSet` + `ProvideDomain(cli.Service)` |
+| `templates.go` | Embedded XO-шаблоны (`//go:embed templates/*.tpl`), экспорт `TemplatesDir()` |
+| `templates/` | 16 файлов `.tpl` — XO-шаблоны для генерации Go-кода (Postgres, MSSQL, MySQL, Oracle, xo_db, xouid) |
 
 ## Ключевые типы
 

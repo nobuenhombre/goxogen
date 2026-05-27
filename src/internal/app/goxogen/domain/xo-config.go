@@ -24,7 +24,6 @@ type XOConfig struct {
 			Path         string `yaml:"path"`
 			Package      string `yaml:"package"`
 			Queries      string `yaml:"queries"`
-			Templates    string `yaml:"templates"`
 			IgnoreFields string `yaml:"ignore_fields,omitempty"`
 		} `yaml:"codegen"`
 	} `yaml:"config"`

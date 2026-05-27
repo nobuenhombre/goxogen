@@ -12,11 +12,13 @@
 | `cli/provider.go` | `cli.ProviderSet` + `ProvideCLI()` |
 | `config/config-app.go` | YAML config loader/saver через `yaml.v3` |
 | `config/provider.go` | `configapp.ProviderSet` + `ProvideConfigApp()` |
-| `domain/domain-app.go` | `DomainService{}.Run()` — заглушка бизнес-логики |
+| `domain/domain-app.go` | `DomainService{}.Run()` — бизнес-логика XO-генерации |
 | `domain/provider.go` | `domainapp.ProviderSet` + `ProvideDomain()` |
+| `domain/templates.go` | Embedded XO-шаблоны через `//go:embed templates/*.tpl` |
+| `domain/templates/` | 16 `.tpl` файлов XO-шаблонов (Postgres, MSSQL, MySQL, Oracle, xo_db, xouid) |
 | `log/log-file.go` | `ILogFile` — перенаправление `log` в файл |
 | `log/provider.go` | `logfile.ProviderSet` + `ProvideLogFile()` |
-| `version/version.go` | `const Version = "v0.1.0"` |
+| `version/version.go` | `const Version = "v0.3.0"` |
 
 ## Ключевые типы
 

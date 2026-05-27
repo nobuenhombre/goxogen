@@ -99,7 +99,7 @@ goxogen/
 
 | App | Current version |
 |-----|----------------|
-| goxogen | v0.1.0 |
+| goxogen | v0.3.0 |
 | gobp | v0.6.0 |
 | xouid | v0.1.0 |
 
@@ -230,12 +230,12 @@ config:
     path: ./gen
     package: gen
     queries: ./queries
-    templates: ./templates
     ignore_fields: created_at,updated_at
 ```
 
 ## Gotchas
 
+- **Embedded шаблоны:** XO-шаблоны встроены в бинарник через `//go:embed` и извлекаются в `os.MkdirTemp` при запуске `-runtype=xo`. Не нужно указывать `templates` в конфиге — всегда используются шаблоны из `src/internal/app/goxogen/domain/templates/`
 - **`go vet файл.go` даёт `undefined: Service`** в provider.go — всегда использовать `go vet ./...`
 - **Версионирование:** только через `-version` перед Wire init — после Wire подключена БД/лог
 - **Wire cleanup:** порядок cleanup обратный порядку создания — важно для закрытия подключений

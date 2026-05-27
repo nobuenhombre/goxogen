@@ -22,14 +22,19 @@ func (d *AppDomain) Run() error {
 	outdir := cfg.Config.Codegen.Path
 	ignoreFields := cfg.Config.Codegen.IgnoreFields
 	pkg := cfg.Config.Codegen.Package
-	templates := cfg.Config.Codegen.Templates
 	queries := cfg.Config.Codegen.Queries
 
 	log.Printf("[xo] Connection string: %s", cs)
 	log.Printf("[xo] Output: %s", outdir)
 	log.Printf("[xo] Package: %s", pkg)
-	log.Printf("[xo] Templates: %s", templates)
 	log.Printf("[xo] Queries: %s", queries)
+
+	// Extract embedded templates to a temp directory
+	templates, err := TemplatesDir()
+	if err != nil {
+		return fmt.Errorf("extracting embedded templates: %w", err)
+	}
+	log.Printf("[xo] Embedded templates extracted to: %s", templates)
 
 	// Step 1: Run xo generation
 	if err := d.runXO(cs, csuid, outdir, ignoreFields, pkg, templates, queries); err != nil {

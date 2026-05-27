@@ -10,7 +10,7 @@
 
 | Application | Version | Description |
 |-------------|---------|-------------|
-| **goxogen** | v0.1.0 | Code generation scaffolder — generates Go code from YAML templates and runs a full XO code generation pipeline |
+| **goxogen** | v0.3.0 | Code generation scaffolder — generates Go code from YAML templates and runs a full XO code generation pipeline |
 | **gobp** | v0.6.0 | Build pipeline with progress bar — wraps `go build` with visual progress, step counting, and ETA |
 | **xouid** | v0.1.0 | PostgreSQL XOID query generator — generates typed Go functions from UPDATE/INSERT/DELETE SQL with EXPLAIN validation |
 
@@ -148,11 +148,10 @@ config:
     backups:
       path: /path/to/backups
   codegen:
-    path: ./gen           # Output directory
-    package: gen           # Go package name
-    queries: ./queries     # SQL query files directory
-    templates: ./templates # xo templates directory
-    ignore_fields: created_at,updated_at
+    path: ./gen          # output directory for generated code
+    package: gen         # Go package name for generated code
+    queries: ./queries   # SQL queries directory
+    ignore_fields: created_at,updated_at  # fields to skip in generation
 ```
 
 ### Pipeline Steps

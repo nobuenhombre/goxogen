@@ -151,7 +151,6 @@ config:
     path: ./gen           # Директория вывода
     package: gen           # Имя Go-пакета
     queries: ./queries     # Директория с SQL-файлами
-    templates: ./templates # Директория шаблонов xo
     ignore_fields: created_at,updated_at
 ```
 
