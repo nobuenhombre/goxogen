@@ -24,7 +24,7 @@ func (a *App) Run() error {
 // newApp is the Wire provider for the top-level application.
 func newApp(dom domainapp.DomainService) (IApp, func(), error) {
 	cleanup := func() {
-		log.Println("App cleanup")
+		log.Println("[wire-cleanup] App cleanup")
 	}
 
 	return &App{dom: dom}, cleanup, nil

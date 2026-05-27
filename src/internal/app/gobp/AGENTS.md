@@ -11,7 +11,6 @@ CLI-утилита для отображения прогресса `go build` �
 | `cli/cli.go` | CLI флаги: `-binary`, `-out`, `-verbose`, `-full-rebuild` |
 | `cli/provider.go` | `cli.ProviderSet` + `ProvideCLI()` |
 | `domain/domain.go` | `DomainService{}.Run()` — подсчёт шагов + прогресс-бар |
-| `domain/types.go` | `ProgressState`, ANSI colors, render functions |
 | `domain/provider.go` | `domainapp.ProviderSet` + `ProvideDomain()` |
 | `version/version.go` | `const Version = "v0.4.0"` |
 
@@ -20,7 +19,7 @@ CLI-утилита для отображения прогресса `go build` �
 - **cli.Config** — структура с геттерами `GetBinary()`, `GetOut()`, `GetVerbose()`, `GetFullRebuild()`
 - **cli.Service** — интерфейс (абстракция для Wire)
 - **domainapp.AppDomain** — реализует `DomainService`, управляет прогресс-баром
-- **ProgressState** — состояние прогресса: текущий/всего шагов, время, ETA
+- **ProgressState** — из `goxogen/src/internal/pkg/progress-bar`, не дублировать
 
 ## Алгоритм
 

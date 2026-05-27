@@ -17,3 +17,10 @@ func New(cliConfig cli.Service) DomainService {
 		Cli: cliConfig.(*cli.Config),
 	}
 }
+
+// countPipelineSteps returns the total number of top-level pipeline steps (8).
+// Matches the 8 steps in Run(): runXO, replaceInterfaceToAny, glueXoXouid,
+// extractRepo, removeXoXouid, cleanXoXouidSourceBlocks, generateDbRepo, goFormatCode.
+func (d *AppDomain) countPipelineSteps(cfg *XOConfig) (int, error) {
+	return 8, nil
+}

@@ -15,7 +15,7 @@ var ProviderSet = wire.NewSet(
 // ProvideDomain creates the domain service (business-logic orchestrator).
 func ProvideDomain(cliConfig cli.Service) (DomainService, func(), error) {
 	cleanup := func() {
-		log.Println("Domain cleanup")
+		log.Println("[wire-cleanup] Domain cleanup")
 	}
 
 	dom := New(cliConfig)

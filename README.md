@@ -4,14 +4,14 @@
 [![Wire DI](https://img.shields.io/badge/DI-Google_Wire-green)](https://github.com/google/wire)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-**goxogen** is a multi-tool monorepo containing three CLI applications for Go code generation, build progress visualization, and PostgreSQL query scaffolding.
+**goxogen** is a multi-tool monorepo containing three CLI applications for Go code generation (XO pipeline), build progress visualization, and PostgreSQL query scaffolding.
 
 ## Applications
 
 | Application | Version | Description |
 |-------------|---------|-------------|
-| **goxogen** | v0.4.0 | Code generation scaffolder — generates Go code from YAML templates and runs a full XO code generation pipeline |
-| **gobp** | v0.6.0 | Build pipeline with progress bar — wraps `go build` with visual progress, step counting, and ETA |
+| **goxogen** | v0.9.0 | XO code generation pipeline — generates Go models and query functions from PostgreSQL schema with an 8-step automated pipeline |
+| **gobp** | v0.7.0 | Build pipeline with progress bar — wraps `go build` with dry-run step counting, visual progress, ETA, and error aggregation |
 | **xouid** | v0.1.0 | PostgreSQL XOID query generator — generates typed Go functions from UPDATE/INSERT/DELETE SQL with EXPLAIN validation |
 
 ---
@@ -20,31 +20,32 @@
 
 ```
 goxogen/
-├── AGENTS.md                 # Dev agent context (30+ nested AGENTS.md files)
+├── AGENTS.md                 # Dev agent context (23 nested AGENTS.md files)
 ├── Makefile                  # Root build targets (deps, wire)
 ├── go.mod                    # Go module (Go 1.26.1)
 ├── src/
 │   ├── cmd/
-│   │   ├── goxogen/          # Scaffolder CLI (runtype: init, xo)
+│   │   ├── goxogen/          # XO code generation pipeline CLI
 │   │   ├── gobp/             # Build progress CLI
 │   │   └── xouid/            # XOID query generator CLI
-│   └── internal/
-│       └── app/
-│           ├── goxogen/      # Config, CLI, domain, log, version
-│           ├── gobp/         # CLI, domain, version
-│           └── xouid/        # CLI, domain, postgres, version
+│   ├── internal/
+│   │   ├── pkg/
+│   │   │   └── progress-bar/ # Shared ANSI progress bar (used by goxogen + gobp)
+│   │   └── app/
+│   │       ├── goxogen/      # Config, CLI, domain (XO pipeline), log, version
+│   │       ├── gobp/         # CLI, domain, version
+│   │       └── xouid/        # CLI, domain, postgres, version
 ├── service/
 │   └── deployments/          # Per-app Linux build & install Makefiles
 ├── bin/                      # Compiled binaries (gitkeep'd)
 ├── goxogen                   # Compiled goxogen binary
 ├── gobp                      # Compiled gobp binary
 ├── xouid                     # Compiled xouid binary
-├── README.md                 # English docs
-├── README.RU.md              # Russian docs
+├── .idea/                    # GoLand/IntelliJ project configuration
 └── LICENSE                   # Apache 2.0
 ```
 
-Every package has its own AGENTS.md describing purpose, key types, Wire integration, and change rules.
+Every package has its own AGENTS.md describing purpose, key types, Wire integration, and change rules (23 total).
 
 ## Technology Stack
 
@@ -63,11 +64,12 @@ Every package has its own AGENTS.md describing purpose, key types, Wire integrat
 
 ## Features
 
-- **Code Scaffolding** — generate Go project structures from YAML configs with `goxogen -runtype=init`
 - **XO Code Generation Pipeline** — 8-step pipeline: schema → models → query functions (one/many/UID) → repo extraction → aggregate repo → formatting/vetting
+- **Multi-DB Template Support** — 14 embedded templates for PostgreSQL, MSSQL, MySQL, and Oracle type generation
 - **Build Progress Bar** — `gobp` wraps `go build` with dry-run step counting, ANSI progress bar, time/ETA display, and error aggregation
 - **PostgreSQL Query Generation** — `xouid` validates SQL via EXPLAIN, parses `%%param type%%` descriptors, and generates typed Go query functions using Go templates
 - **Google Wire DI** — clean dependency injection across all three apps with proper cleanup ordering
+- **Shared Progress Bar** — common ANSI progress bar package used by both goxogen and gobp
 
 ## Getting Started
 
@@ -131,7 +133,7 @@ go test ./... -v
 
 ## XO Code Generation Pipeline
 
-When goxogen runs with `-runtype=xo -config=config.yaml`, it executes a full 8-step pipeline that generates Go code from a PostgreSQL database schema:
+goxogen runs its 8-step code generation pipeline when executed with `-config=config.yaml`. It connects to a PostgreSQL database, generates models and query functions, extracts repository interfaces, and produces clean, formatted Go code.
 
 ### Config YAML Structure
 
@@ -173,6 +175,27 @@ SQL query files follow the naming convention `TypeName-FuncName.sql` and are org
 - `queries/many/` — multi-row queries
 - `queries/uid/` — UPDATE/INSERT/DELETE queries (processed by xouid)
 
+### Embedded Templates
+
+14 Go templates are embedded into the goxogen binary via `//go:embed` and extracted at runtime:
+
+| Template | Purpose |
+|----------|---------|
+| `mssql.type.go.tpl` | MSSQL type generation |
+| `mysql.type.go.tpl` | MySQL type generation |
+| `oracle.type.go.tpl` | Oracle type generation |
+| `postgres.enum.go.tpl` | PostgreSQL enum generation |
+| `postgres.foreignkey.go.tpl` | PostgreSQL foreign key queries |
+| `postgres.index.go.tpl` | PostgreSQL index queries |
+| `postgres.proc.go.tpl` | PostgreSQL stored procedures |
+| `postgres.query.go.tpl` | PostgreSQL query functions |
+| `postgres.querytype.go.tpl` | PostgreSQL query type helpers |
+| `postgres.type.go.tpl` | PostgreSQL type generation |
+| `xo_db.go.tpl` | Database connection wrapper |
+| `xo_package.go.tpl` | Package header |
+| `xouid_package.go.tpl` | XOID package header |
+| `xouid_query.go.tpl` | XOID query function |
+
 ## Dependency Injection (Google Wire)
 
 Each application uses Google Wire for dependency injection. Wire DI graph:
@@ -187,6 +210,17 @@ xouid:    cli ProviderSet → postgres ProviderSet → domain ProviderSet → Ap
 - `wire.go` in `package main`: only `wire.Build()`, no application logic
 - `wire_gen.go` is auto-generated — never edit manually
 - All `Provide*` functions return `(T, func(), error)` for proper cleanup chaining
+
+## Shared Packages
+
+### progress-bar (`src/internal/pkg/progress-bar/`)
+
+Shared ANSI progress bar used by both goxogen and gobp. Provides:
+
+- **ProgressState** — bar state with title, project name, current/total, elapsed time, ETA, error count
+- **ProgressTracker** — lifecycle manager: Increment, AddError, Finish, Fail
+- Unicode progress bar with 8 ANSI colors, 50-character bar length
+- ETA calculation with remaining time estimate
 
 ## Deployment
 

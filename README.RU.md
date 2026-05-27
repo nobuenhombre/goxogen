@@ -4,14 +4,14 @@
 [![Wire DI](https://img.shields.io/badge/DI-Google_Wire-green)](https://github.com/google/wire)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-**goxogen** — это монорепозиторий с тремя CLI-приложениями для генерации Go-кода, визуализации процесса сборки и генерации PostgreSQL-запросов.
+**goxogen** — это монорепозиторий с тремя CLI-приложениями для генерации Go-кода (XO-пайплайн), визуализации процесса сборки и генерации PostgreSQL-запросов.
 
 ## Приложения
 
 | Приложение | Версия | Описание |
 |------------|--------|----------|
-| **goxogen** | v0.4.0 | Генератор кода из YAML-шаблонов с полным пайплайном XO-генерации |
-| **gobp** | v0.6.0 | Сборка Go с прогресс-баром — подсчёт шагов, ETA, агрегация ошибок |
+| **goxogen** | v0.9.0 | XO-пайплайн генерации кода — создаёт Go-модели и функции запросов из схемы PostgreSQL через 8-шаговый автоматизированный процесс |
+| **gobp** | v0.7.0 | Сборка Go с прогресс-баром — подсчёт шагов через dry-run, ANSI-прогресс-бар, отображение времени/ETA и сбор ошибок |
 | **xouid** | v0.1.0 | Генератор типизированных Go-функций из SQL-запросов (UPDATE/INSERT/DELETE) с EXPLAIN-валидацией через PostgreSQL |
 
 ---
@@ -20,31 +20,32 @@
 
 ```
 goxogen/
-├── AGENTS.md                 # Контекст для dev-агента (30+ вложенных AGENTS.md)
+├── AGENTS.md                 # Контекст для dev-агента (23 вложенных AGENTS.md)
 ├── Makefile                  # Корневые цели сборки (deps, wire)
 ├── go.mod                    # Go-модуль (Go 1.26.1)
 ├── src/
 │   ├── cmd/
-│   │   ├── goxogen/          # CLI scaffolder (runtype: init, xo)
+│   │   ├── goxogen/          # CLI XO-пайплайна генерации кода
 │   │   ├── gobp/             # CLI сборки с прогресс-баром
 │   │   └── xouid/            # CLI генератора XOID-запросов
-│   └── internal/
-│       └── app/
-│           ├── goxogen/      # Config, CLI, domain, log, version
-│           ├── gobp/         # CLI, domain, version
-│           └── xouid/        # CLI, domain, postgres, version
+│   ├── internal/
+│   │   ├── pkg/
+│   │   │   └── progress-bar/ # Общий ANSI-прогресс-бар (используется goxogen + gobp)
+│   │   └── app/
+│   │       ├── goxogen/      # Config, CLI, domain (XO-пайплайн), log, version
+│   │       ├── gobp/         # CLI, domain, version
+│   │       └── xouid/        # CLI, domain, postgres, version
 ├── service/
 │   └── deployments/          # Makefile'ы сборки и установки под Linux
 ├── bin/                      # Скомпилированные бинарники (gitkeep'd)
 ├── goxogen                   # Скомпилированный goxogen
 ├── gobp                      # Скомпилированный gobp
 ├── xouid                     # Скомпилированный xouid
-├── README.md                 # Документация на английском
-├── README.RU.md              # Документация на русском
+├── .idea/                    # Конфигурация GoLand/IntelliJ
 └── LICENSE                   # Apache 2.0
 ```
 
-Каждый пакет содержит собственный AGENTS.md с описанием назначения, ключевых типов, Wire-интеграции и правил модификации.
+Каждый пакет содержит собственный AGENTS.md с описанием назначения, ключевых типов, Wire-интеграции и правил модификации (всего 23 файла).
 
 ## Технологический стек
 
@@ -63,11 +64,12 @@ goxogen/
 
 ## Возможности
 
-- **Scaffolding кода** — генерация структур Go-проектов из YAML-конфигов через `goxogen -runtype=init`
 - **Пайплайн XO-генерации** — 8-шаговый процесс: схема БД → модели → функции запросов (one/many/UID) → извлечение репозиториев → агрегатный репозиторий → форматирование
+- **Мульти-БД шаблоны** — 14 встроенных шаблонов для PostgreSQL, MSSQL, MySQL и Oracle
 - **Прогресс-бар сборки** — `gobp` оборачивает `go build` с подсчётом шагов через dry-run, ANSI-прогресс-баром, отображением времени/ETA и сбором ошибок
 - **Генерация PostgreSQL-запросов** — `xouid` валидирует SQL через EXPLAIN, парсит `%%param type%%` дескрипторы и генерирует типизированные Go-функции через шаблоны
 - **Google Wire DI** — чистое внедрение зависимостей во всех трёх приложениях с правильным порядком cleanup
+- **Общий прогресс-бар** — пакет progress-bar используется как goxogen, так и gobp
 
 ## Начало работы
 
@@ -131,7 +133,7 @@ go test ./... -v
 
 ## Пайплайн XO-генерации кода
 
-При запуске goxogen с `-runtype=xo -config=config.yaml` выполняется 8-шаговый пайплайн генерации Go-кода из схемы PostgreSQL:
+goxogen запускает 8-шаговый пайплайн при выполнении с `-config=config.yaml`. Он подключается к PostgreSQL, генерирует модели и функции запросов, извлекает интерфейсы репозиториев и производит чистый отформатированный Go-код.
 
 ### Структура YAML-конфига
 
@@ -173,6 +175,27 @@ SQL-файлы именуются по шаблону `TypeName-FuncName.sql` и
 - `queries/many/` — запросы на множество строк
 - `queries/uid/` — UPDATE/INSERT/DELETE (обрабатываются xouid)
 
+### Встроенные шаблоны
+
+14 Go-шаблонов встроены в бинарник goxogen через `//go:embed` и извлекаются во временную директорию при запуске:
+
+| Шаблон | Назначение |
+|--------|-----------|
+| `mssql.type.go.tpl` | Генерация типов для MSSQL |
+| `mysql.type.go.tpl` | Генерация типов для MySQL |
+| `oracle.type.go.tpl` | Генерация типов для Oracle |
+| `postgres.enum.go.tpl` | Генерация перечислений PostgreSQL |
+| `postgres.foreignkey.go.tpl` | Запросы внешних ключей PostgreSQL |
+| `postgres.index.go.tpl` | Запросы индексов PostgreSQL |
+| `postgres.proc.go.tpl` | Хранимые процедуры PostgreSQL |
+| `postgres.query.go.tpl` | Функции запросов PostgreSQL |
+| `postgres.querytype.go.tpl` | Вспомогательные типы запросов PostgreSQL |
+| `postgres.type.go.tpl` | Генерация типов PostgreSQL |
+| `xo_db.go.tpl` | Обёртка подключения к БД |
+| `xo_package.go.tpl` | Заголовок пакета |
+| `xouid_package.go.tpl` | Заголовок пакета XOID |
+| `xouid_query.go.tpl` | Функция запроса XOID |
+
 ## Внедрение зависимостей (Google Wire)
 
 Каждое приложение использует Google Wire для внедрения зависимостей. Граф DI:
@@ -187,6 +210,17 @@ xouid:    cli ProviderSet → postgres ProviderSet → domain ProviderSet → Ap
 - `wire.go` в `package main`: только `wire.Build()`, никакой логики
 - `wire_gen.go` автосгенерирован — не редактировать вручную
 - Все `Provide*` возвращают `(T, func(), error)` для правильного порядка cleanup
+
+## Общие пакеты
+
+### progress-bar (`src/internal/pkg/progress-bar/`)
+
+Общий ANSI-прогресс-бар, используемый goxogen и gobp. Предоставляет:
+
+- **ProgressState** — состояние бара: заголовок, имя проекта, текущий/всего шаги, прошедшее время, ETA, количество ошибок
+- **ProgressTracker** — менеджер жизненного цикла: Increment, AddError, Finish, Fail
+- Юникод-прогресс-бар с 8 ANSI-цветами, длина бара 50 символов
+- Расчёт ETA с оценкой оставшегося времени
 
 ## Деплой
 

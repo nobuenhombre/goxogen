@@ -2,8 +2,8 @@
 
 ## Overview
 
-- **Purpose:** multi-tool monorepo (goxogen, gobp, xouid) for Go code generation, build progress display, and PostgreSQL XOID query scaffolding.
-- **Domain:** code scaffolding, build tooling, SQL-to-Go generation
+- **Purpose:** multi-tool monorepo (goxogen, gobp, xouid) for Go code generation (XO pipeline), build progress display, and PostgreSQL XOID query scaffolding.
+- **Domain:** code generation, build tooling, SQL-to-Go generation
 - **Module:** `goxogen` (Go 1.26.1)
 
 ## Архитектура
@@ -15,13 +15,13 @@ goxogen/
 │   ├── AGENTS.md               # Root src agents context
 │   ├── cmd/
 │   │   ├── AGENTS.md           # cmd agents context
-│   │   ├── goxogen/            # scaffolder CLI (code generation templates)
+│   │   ├── goxogen/            # XO code generation pipeline CLI
 │   │   │   ├── AGENTS.md
 │   │   │   ├── main.go
 │   │   │   ├── app.go
 │   │   │   ├── wire.go
 │   │   │   └── wire_gen.go
-│   │   ├── gobp/               # build pipeline with progress bar
+│   │   ├── gobp/               # Build pipeline with progress bar
 │   │   │   ├── AGENTS.md
 │   │   │   ├── main.go
 │   │   │   ├── app.go
@@ -33,38 +33,42 @@ goxogen/
 │   │       ├── app.go
 │   │       ├── wire.go
 │   │       └── wire_gen.go
-│   └── internal/
-│       ├── AGENTS.md           # Internal packages context
-│       └── app/
-│           ├── goxogen/        # config + cli + domain + log + version
-│           │   ├── AGENTS.md
-│           │   ├── cli/        # CLI flag parsing (runtype, config, log, version)
-│           │   ├── config/     # YAML config load/save (app-level)
-│           │   ├── domain/     # Business logic: XO pipeline + app run
-│           │   ├── log/        # Log file redirection
-│           │   └── version/    # v0.1.0
-│           ├── gobp/           # cli + domain + version
-│           │   ├── AGENTS.md
-│           │   ├── cli/        # CLI flags: binary, out, verbose, full-rebuild
-│           │   ├── domain/     # Build progress bar with dry-run counting
-│           │   └── version/    # v0.6.0
-│           └── xouid/          # cli + domain + postgres + version
-│               ├── AGENTS.md
-│               ├── cli/        # CLI flags: out, dsn, template-path, etc.
-│               ├── domain/     # SQL-to-Go generation with EXPLAIN validation
-│               ├── postgres/   # pgx/v5 connection pool
-│               └── version/    # v0.1.0
+│   ├── internal/
+│   │   ├── AGENTS.md           # Internal packages context
+│   │   ├── pkg/
+│   │   │   └── progress-bar/   # Shared ANSI progress bar (used by goxogen + gobp)
+│   │   │       └── progress-bar.go
+│   │   └── app/
+│   │       ├── goxogen/        # config + cli + domain + log + version
+│   │       │   ├── AGENTS.md
+│   │       │   ├── cli/        # CLI flags: config, log, version
+│   │       │   ├── config/     # YAML config load/save (app-level, generic)
+│   │       │   ├── domain/     # XO pipeline logic (8 steps) + embedded templates
+│   │       │   ├── log/        # Log file redirection
+│   │       │   └── version/    # v0.9.0
+│   │       ├── gobp/           # cli + domain + version
+│   │       │   ├── AGENTS.md
+│   │       │   ├── cli/        # CLI flags: binary, out, verbose, full-rebuild
+│   │       │   ├── domain/     # Build progress bar with dry-run counting
+│   │       │   └── version/    # v0.7.0
+│   │       └── xouid/          # cli + domain + postgres + version
+│   │           ├── AGENTS.md
+│   │           ├── cli/        # CLI flags: out, dsn, template-path, etc.
+│   │           ├── domain/     # SQL-to-Go generation with EXPLAIN validation
+│   │           ├── postgres/   # pgx/v5 connection pool
+│   │           └── version/    # v0.1.0
 ├── service/
-│   ├── AGENTS.md               # Service infrastructure context
-│   └── deployments/
-│       ├── AGENTS.md           # Deployments context
-│       ├── goxogen/linux/Makefile
-│       ├── gobp/linux/Makefile
-│       └── xouid/linux/Makefile
+│   │   ├── AGENTS.md           # Service infrastructure context
+│   │   └── deployments/
+│   │       ├── AGENTS.md       # Deployments context
+│   │       ├── goxogen/linux/Makefile
+│   │       ├── gobp/linux/Makefile
+│   │       └── xouid/linux/Makefile
 ├── bin/                        # Compiled binaries (gitkeep'd)
 ├── gobp                        # Compiled gobp binary (used for build-app-progress)
 ├── goxogen                     # Compiled goxogen binary
 ├── xouid                       # Compiled xouid binary
+├── .idea/                      # GoLand/IntelliJ project config
 ├── Makefile                    # Root build targets: deps, wire
 ├── go.mod                      # Go 1.26.1
 ├── go.sum
@@ -74,7 +78,7 @@ goxogen/
 └── .gitignore
 ```
 
-**Nested AGENTS.md:** every `src/cmd/{app}/`, `src/internal/app/{app}/`, and every internal package has its own AGENTS.md describing purpose, files, key types, Wire integration, and change rules. Read the relevant nested AGENTS.md before modifying any package.
+**Nested AGENTS.md:** 23 AGENTS.md files across the project tree. Every `src/cmd/{app}/`, `src/internal/app/{app}/`, `src/internal/app/{app}/{pkg}/`, and every internal package has its own AGENTS.md describing purpose, files, key types, Wire integration, and change rules. Read the relevant nested AGENTS.md before modifying any package.
 
 ## Технологический стек
 
@@ -99,8 +103,8 @@ goxogen/
 
 | App | Current version |
 |-----|----------------|
-| goxogen | v0.4.0 |
-| gobp | v0.6.0 |
+| goxogen | v0.9.0 |
+| gobp | v0.7.0 |
 | xouid | v0.1.0 |
 
 ## CLI-флаги
@@ -196,15 +200,15 @@ go test ./... -v
 - Единственный тест: `config-app_test.go` (Load/Save круг)
 - Test fixtures: `config-app_test_load.yaml`, `config-app_test_save.yaml`
 
-## XO Code Generation Pipeline (goxogen -runtype=xo)
+## XO Code Generation Pipeline
 
-goxogen supports a full 8-step code generation pipeline when run with `-runtype=xo`:
+goxogen runs a full 8-step code generation pipeline from a YAML config (the app has no `-runtype` flag — the pipeline is the only mode):
 
 1. **runXO** — Deletes old `.xo.go` and `.xouid.go` files, then runs:
-   - `xo basic` — schema-based model generation
+   - `xo basic` — schema-based model generation (PostgreSQL, MSSQL, MySQL, Oracle — 14 embedded templates)
    - `xo queries one` — single-row query generation (from `queries/one/*.sql`)
    - `xo queries many` — multi-row query generation (from `queries/many/*.sql`)
-   - `xo queries uid` — UPDATE/INSERT/DELETE via xouid (from `queries/uid/*.sql`)
+   - `xo queries uid` — UPDATE/INSERT/DELETE via xouid (from `queries/uid/*.sql`, calls `/usr/local/bin/xouid`)
    - Deletes `sp_*.xo.go` (stored procedure artifacts)
 2. **replaceInterfaceToAny** — Replaces `interface{}` with `any` in all `.go` files
 3. **glueXoXouid** — Merges `.xo.go` + `.xouid.go` → `.xo-xouid.go`
@@ -214,7 +218,29 @@ goxogen supports a full 8-step code generation pipeline when run with `-runtype=
 7. **generateDbRepo** — Scans `*-repo.xo.go`, generates `a-db-repo.go` with aggregate `Db{DbName}Repo` struct + `NewDb{DbName}Repository` constructor
 8. **goFormatCode** — Runs `go fmt`, `goimports -w`, `go vet`
 
-Config YAML structure (`-config config.yaml`):
+### Embedded Templates (14 files)
+
+Templates are embedded via `//go:embed` and extracted to a temp directory at runtime:
+
+| Template | Purpose |
+|----------|---------|
+| `mssql.type.go.tpl` | MSSQL type generation |
+| `mysql.type.go.tpl` | MySQL type generation |
+| `oracle.type.go.tpl` | Oracle type generation |
+| `postgres.enum.go.tpl` | PostgreSQL enum generation |
+| `postgres.foreignkey.go.tpl` | PostgreSQL foreign key queries |
+| `postgres.index.go.tpl` | PostgreSQL index queries |
+| `postgres.proc.go.tpl` | PostgreSQL stored procedures |
+| `postgres.query.go.tpl` | PostgreSQL query functions |
+| `postgres.querytype.go.tpl` | PostgreSQL query type helpers |
+| `postgres.type.go.tpl` | PostgreSQL type generation |
+| `xo_db.go.tpl` | Database connection wrapper |
+| `xo_package.go.tpl` | Package header |
+| `xouid_package.go.tpl` | XOID package header |
+| `xouid_query.go.tpl` | XOID query function |
+
+### Config YAML structure (`-config config.yaml`)
+
 ```yaml
 config:
   db:
@@ -235,9 +261,22 @@ config:
     db_name: Mydb  # optional, overrides db.name for Db{Name}Repo struct
 ```
 
+## Shared Packages
+
+### progress-bar (`src/internal/pkg/progress-bar/`)
+
+Shared ANSI progress bar used by both goxogen and gobp. Provides:
+
+- **ProgressState** — bar state: title, project name, current/total, elapsed time, ETA, error count
+- **ProgressTracker** — lifecycle manager: Increment(file), AddError(line), Finish(), Fail()
+- Helpers: StartLine(), FinishLine(), ErrorLine()
+- Unicode progress rendering with ANSI color codes (8 colors)
+- Progress bar truncated to fit standard terminal width
+- ETA calculation with remaining time estimate
+
 ## Gotchas
 
-- **Embedded шаблоны:** XO-шаблоны встроены в бинарник через `//go:embed` и извлекаются в `os.MkdirTemp` при запуске `-runtype=xo`. Не нужно указывать `templates` в конфиге — всегда используются шаблоны из `src/internal/app/goxogen/domain/templates/`
+- **Embedded шаблоны:** XO-шаблоны встроены в бинарник через `//go:embed` и извлекаются в `os.MkdirTemp` при запуске. Не нужно указывать `templates` в конфиге — всегда используются шаблоны из `src/internal/app/goxogen/domain/templates/`
 - **`go vet файл.go` даёт `undefined: Service`** в provider.go — всегда использовать `go vet ./...`
 - **Версионирование:** только через `-version` перед Wire init — после Wire подключена БД/лог
 - **Wire cleanup:** порядок cleanup обратный порядку создания — важно для закрытия подключений
@@ -247,4 +286,5 @@ config:
 - **xouid templates:** ожидает файлы `xouid_package.go.tpl` (template name: `xouidpackage`) и `xouid_query.go.tpl` (template name: `xouidquery`) в пути `-template-path`
 - **xouid SQL params:** формат `%%paramName type%%` (2 parts: name + type); валидируется регуляркой `(%%(\s|\S)*?%%)`
 - **xouid supports types:** int, int32, int64, float, float32, float64, string, bool, uuid.UUID, time.Time, []int/[]int32/[]int64
+- **xouid binary path:** из goxogen pipeline вызывается `/usr/local/bin/xouid` (hardcoded в xo-gen.go)
 - **bin/.gitkeep:** директории бинарников не удалять (биндинги в deployment Makefile)

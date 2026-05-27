@@ -2,15 +2,20 @@ package domainapp
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	progressbar "goxogen/src/internal/pkg/progress-bar"
 )
 
-// RunXO executes the full xo code generation pipeline.
+const PipelineTitle = "Generating code"
+
+// RunXO executes the full xo code generation pipeline with a progress bar.
 func (d *AppDomain) Run() error {
 	cfg, err := LoadXOConfig(d.Cli.Config)
 	if err != nil {
@@ -24,10 +29,26 @@ func (d *AppDomain) Run() error {
 	pkg := cfg.Config.Codegen.Package
 	queries := cfg.Config.Codegen.Queries
 
-	log.Printf("[xo] Connection string: %s", cs)
-	log.Printf("[xo] Output: %s", outdir)
-	log.Printf("[xo] Package: %s", pkg)
-	log.Printf("[xo] Queries: %s", queries)
+	fmt.Printf("%sConnection string: %s%s\n", progressbar.ColorProject, cs, progressbar.ColorReset)
+	fmt.Printf("%sOutput: %s%s\n", progressbar.ColorProject, outdir, progressbar.ColorReset)
+	fmt.Printf("%sPackage: %s%s\n", progressbar.ColorProject, pkg, progressbar.ColorReset)
+	fmt.Printf("%sQueries: %s%s\n", progressbar.ColorProject, queries, progressbar.ColorReset)
+
+	// Pre-count pipeline steps for the progress bar
+	totalSteps, err := d.countPipelineSteps(cfg)
+	if err != nil {
+		return fmt.Errorf("counting pipeline steps: %w", err)
+	}
+
+	pt := progressbar.NewProgressTracker(PipelineTitle, totalSteps)
+	fmt.Print(progressbar.StartLine(PipelineTitle, "xoxgen"))
+
+	// Redirect log output to discard during pipeline to prevent
+	// log.Printf lines from pushing the progress bar cursor down.
+	// Use -log flag to capture logs to a file if needed.
+	logOutput := log.Writer()
+	log.SetOutput(io.Discard)
+	defer log.SetOutput(logOutput)
 
 	// Extract embedded templates to a temp directory
 	templates, err := TemplatesDir()
@@ -37,46 +58,72 @@ func (d *AppDomain) Run() error {
 	log.Printf("[xo] Embedded templates extracted to: %s", templates)
 
 	// Step 1: Run xo generation
+	pt.Increment("XO code generation")
 	if err := d.runXO(cs, csuid, outdir, ignoreFields, pkg, templates, queries); err != nil {
+		pt.AddError(err.Error())
+		pt.Fail()
 		return fmt.Errorf("xo generation: %w", err)
 	}
 
 	// Step 2: Replace interface{} with any
+	pt.Increment("Replace interface{} with any")
 	if err := d.replaceInterfaceToAny(outdir); err != nil {
+		pt.AddError(err.Error())
+		pt.Fail()
 		return fmt.Errorf("replace interface{}: %w", err)
 	}
 
 	// Step 3: Glue .xo.go + .xouid.go -> .xo-xouid.go
+	pt.Increment("Glue .xo.go + .xouid.go files")
 	if err := d.glueXoXouid(outdir); err != nil {
+		pt.AddError(err.Error())
+		pt.Fail()
 		return fmt.Errorf("glue xo/xouid: %w", err)
 	}
 
 	// Step 4: Extract repos from .xo-xouid.go into *-repo.xo.go
+	pt.Increment("Extract repository interfaces")
 	if err := d.extractRepo(outdir, pkg); err != nil {
+		pt.AddError(err.Error())
+		pt.Fail()
 		return fmt.Errorf("extract repo: %w", err)
 	}
 
 	// Step 5: Remove .xo-xouid.go temp files
+	pt.Increment("Remove temporary .xo-xouid.go files")
 	if err := d.removeXoXouid(outdir); err != nil {
+		pt.AddError(err.Error())
+		pt.Fail()
 		return fmt.Errorf("remove xo-xouid: %w", err)
 	}
 
 	// Step 6: Clean @repo blocks from .xo.go and .xouid.go
+	pt.Increment("Clean @repo markers from source files")
 	if err := d.cleanXoXouidSourceBlocks(outdir); err != nil {
+		pt.AddError(err.Error())
+		pt.Fail()
 		return fmt.Errorf("clean repo blocks: %w", err)
 	}
 
 	// Step 7: Generate aggregate Db{Name}Repo struct (a-db-repo.go)
+	pt.Increment("Generate aggregate DbRepo struct")
 	if err := d.generateDbRepo(outdir, cfg); err != nil {
+		pt.AddError(err.Error())
+		pt.Fail()
 		return fmt.Errorf("generate db repo: %w", err)
 	}
 
 	// Step 8: Format and vet code
+	pt.Increment("Format and vet generated code")
 	if err := d.goFormatCode(outdir); err != nil {
+		pt.Fail()
 		return fmt.Errorf("format code: %w", err)
 	}
 
-	log.Println("[xo] XO generation finished successfully")
+	pt.Finish()
+	// Flush stdout so "✅ Done" appears before Wire cleanup log lines
+	os.Stdout.Sync()
+
 	return nil
 }
 
@@ -134,11 +181,9 @@ func (d *AppDomain) runXoBasic(cs, outdir, ignoreFields, pkg, templates string) 
 	log.Printf("[xo] Running: %s", cmdStr)
 
 	cmd := exec.Command("xo", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("xo command failed: %w", err)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("xo command failed: %w\n%s", err, string(output))
 	}
 
 	return nil
@@ -198,8 +243,6 @@ func (d *AppDomain) runXoQueries(cs, outdir, ignoreFields, querydir, pkg, templa
 		log.Printf("[xo] Running: %s", cmdStr)
 
 		cmd := exec.Command("xo", args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 
 		// Read SQL from file
 		sqlData, err := os.ReadFile(filename)
@@ -208,8 +251,9 @@ func (d *AppDomain) runXoQueries(cs, outdir, ignoreFields, querydir, pkg, templa
 		}
 		cmd.Stdin = strings.NewReader(string(sqlData))
 
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("xo query %s failed: %w", filename, err)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("xo query %s failed: %w\n%s", filename, err, string(output))
 		}
 	}
 
@@ -254,11 +298,9 @@ func (d *AppDomain) runXoQueriesUID(dsn, outdir, querydir, pkg, templates string
 		log.Printf("[xo] Running: %s", cmdStr)
 
 		cmd := exec.Command("/usr/local/bin/xouid", args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("xouid query %s failed: %w", filename, err)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("xouid query %s failed: %w\n%s", filename, err, string(output))
 		}
 	}
 
@@ -553,18 +595,28 @@ func (d *AppDomain) removeRepoBlocksFromFiles(dir, pattern, excludePattern strin
 	return nil
 }
 
-// goFormatCode runs go fmt and go vet on the directory.
+// goFormatCode runs go fmt, goimports, and go vet.
+// Errors from fmt/goimports/vet are collected and displayed like gobp.
 func (d *AppDomain) goFormatCode(path string) error {
+	// Step 1: go fmt
 	log.Printf("[xo] Running go fmt %s", path)
 
 	cmd := exec.Command("go", "fmt", path)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// go fmt returns non-zero on parse errors
+		errMsg := strings.TrimSpace(string(output))
+		if errMsg != "" {
+			log.Printf("[xo] go fmt error: %s", errMsg)
+		}
 		return fmt.Errorf("go fmt failed: %w", err)
 	}
+	// Print formatting changes (modified filenames) if any
+	if trimmed := strings.TrimSpace(string(output)); trimmed != "" {
+		log.Printf("[xo] go fmt modified: %s", trimmed)
+	}
 
-	// Run goimports on individual files (glob expansion in Go exec doesn't work)
+	// Step 2: goimports
 	log.Printf("[xo] Running goimports -w on %s", path)
 
 	goFiles, err := filepath.Glob(filepath.Join(path, "*.go"))
@@ -575,20 +627,35 @@ func (d *AppDomain) goFormatCode(path string) error {
 	if len(goFiles) > 0 {
 		args := append([]string{"-w"}, goFiles...)
 		cmd = exec.Command("goimports", args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			errMsg := strings.TrimSpace(string(output))
+			// goimports may not be installed — log as warning
+			if errMsg != "" {
+				log.Printf("[xo] goimports error: %s", errMsg)
+			}
 			log.Printf("[xo] Warning: goimports failed (may not be installed): %v", err)
+		} else {
+			if trimmed := strings.TrimSpace(string(output)); trimmed != "" {
+				log.Printf("[xo] goimports output: %s", trimmed)
+			}
 		}
 	}
 
+	// Step 3: go vet
 	log.Printf("[xo] Running go vet %s", path)
 
 	cmd = exec.Command("go", "vet", path)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		errMsg := strings.TrimSpace(string(output))
+		if errMsg != "" {
+			log.Printf("[xo] go vet error: %s", errMsg)
+		}
 		return fmt.Errorf("go vet failed: %w", err)
+	}
+	if trimmed := strings.TrimSpace(string(output)); trimmed != "" {
+		log.Printf("[xo] go vet output: %s", trimmed)
 	}
 
 	return nil
@@ -597,6 +664,7 @@ func (d *AppDomain) goFormatCode(path string) error {
 // generateDbRepo scans all *-repo.xo.go files and generates an aggregate a-db-repo.go
 // with a Db{DbName}Repo struct that holds all individual repositories.
 func (d *AppDomain) generateDbRepo(outdir string, cfg *XOConfig) error {
+
 	repoFiles, err := filepath.Glob(filepath.Join(outdir, "*-repo.xo.go"))
 	if err != nil {
 		return fmt.Errorf("listing repo files: %w", err)

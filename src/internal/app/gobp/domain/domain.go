@@ -10,6 +10,7 @@ import (
 	"github.com/nobuenhombre/suikat/pkg/ge"
 
 	"goxogen/src/internal/app/gobp/cli"
+	progressbar "goxogen/src/internal/pkg/progress-bar"
 )
 
 // DomainService is the business-logic orchestrator for gobp.
@@ -107,23 +108,23 @@ func (d *AppDomain) Run() error {
 
 	if totalSteps == 0 {
 		// Binary is up to date in cache — run a plain go build to ensure output exists
-		fmt.Print(colorSuccess + "✓" + colorReset + " Binary is up to date — running go build...")
+		fmt.Print(progressbar.ColorSuccess + "✓" + progressbar.ColorReset + " Binary is up to date — running go build...")
 		buildCmd := exec.Command("go", commonArgs...)
 		buildOut, buildErr := buildCmd.CombinedOutput()
 		if buildErr != nil {
-			fmt.Println(" " + colorError + "[FAILED]" + colorReset)
+			fmt.Println(" " + progressbar.ColorError + "[FAILED]" + progressbar.ColorReset)
 			return ge.Pin(fmt.Errorf("build failed: %v\n%s", buildErr, buildOut))
 		}
-		fmt.Println(" " + colorSuccess + "[OK]" + colorReset)
+		fmt.Println(" " + progressbar.ColorSuccess + "[OK]" + progressbar.ColorReset)
 		return nil
 	}
 
 	// Print the header
-	fmt.Print(StartLine(Title, binary))
+	fmt.Print(progressbar.StartLine("Building project", binary))
 
 	startTime := time.Now()
-	state := &ProgressState{
-		Title:       Title,
+	state := &progressbar.ProgressState{
+		Title:       "Building project",
 		ProjectName: binary,
 		StartTime:   startTime.Unix(),
 		Total:       totalSteps,
@@ -168,7 +169,7 @@ func (d *AppDomain) Run() error {
 				state.Remaining = int(float64(state.Elapsed) * float64(totalSteps-step) / float64(step))
 			}
 
-			fmt.Print(state.ProgressBar())
+			fmt.Print(state.ProgressBar(""))
 		}
 
 		// Collect error lines — print them after ErrorLine, not inline
@@ -187,7 +188,8 @@ func (d *AppDomain) Run() error {
 
 	if err != nil {
 		state.Errors = errorCount
-		fmt.Print(ErrorLine(errorCount, elapsed))
+		fmt.Print("\n")
+		fmt.Print(progressbar.ErrorLine(errorCount, elapsed))
 
 		// Print collected error lines after the ⚠ Stopped after N seconds line
 		for _, errorLine := range errorLines {
@@ -200,8 +202,8 @@ func (d *AppDomain) Run() error {
 	// Final: render 100% and success message
 	state.Current = totalSteps
 	state.Elapsed = elapsed
-	fmt.Print(state.ProgressBar())
-	fmt.Print(FinishLine(elapsed))
+	fmt.Print(state.ProgressBar(""))
+	fmt.Print(progressbar.FinishLine(elapsed))
 
 	return nil
 }

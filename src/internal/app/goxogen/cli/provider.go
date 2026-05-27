@@ -15,7 +15,7 @@ var ProviderSet = wire.NewSet(
 // ProvideCLI parses CLI flags and returns a cleanup-aware service.
 func ProvideCLI() (Service, func(), error) {
 	cleanup := func() {
-		log.Println("CLI config cleanup")
+		log.Println("[wire-cleanup] CLI config cleanup")
 	}
 
 	cfg, err := New()
