@@ -1,6 +1,9 @@
 package domainapp
 
 import (
+	"strings"
+	"unicode"
+
 	"github.com/nobuenhombre/suikat/pkg/fico"
 	"github.com/nobuenhombre/suikat/pkg/ge"
 	"gopkg.in/yaml.v3"
@@ -25,6 +28,7 @@ type XOConfig struct {
 			Package      string `yaml:"package"`
 			Queries      string `yaml:"queries"`
 			IgnoreFields string `yaml:"ignore_fields,omitempty"`
+			DbName       string `yaml:"db_name,omitempty"`
 		} `yaml:"codegen"`
 	} `yaml:"config"`
 }
@@ -55,6 +59,35 @@ func (c *XOConfig) XouidConnectionString() string {
 		cs += "&pool_max_conns=" + itoa(cfg.PoolMaxConns)
 	}
 	return cs
+}
+
+// resolveDbName returns the PascalCase database name for use in struct names.
+// Uses codegen.db_name if set, otherwise converts config.db.name to PascalCase.
+func (c *XOConfig) resolveDbName() string {
+	if c.Config.Codegen.DbName != "" {
+		return toPascalCase(c.Config.Codegen.DbName)
+	}
+	return toPascalCase(c.Config.DB.Name)
+}
+
+// toPascalCase converts snake_case, kebab-case, or dot.notation to PascalCase.
+func toPascalCase(s string) string {
+	if s == "" {
+		return ""
+	}
+	fields := strings.FieldsFunc(s, func(r rune) bool {
+		return r == '_' || r == '-' || r == '.' || r == ' '
+	})
+	var result strings.Builder
+	for _, f := range fields {
+		if len(f) == 0 {
+			continue
+		}
+		runes := []rune(f)
+		result.WriteRune(unicode.ToUpper(runes[0]))
+		result.WriteString(string(runes[1:]))
+	}
+	return result.String()
 }
 
 func itoa(n int) string {

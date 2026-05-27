@@ -10,7 +10,7 @@
 
 | Application | Version | Description |
 |-------------|---------|-------------|
-| **goxogen** | v0.3.0 | Code generation scaffolder — generates Go code from YAML templates and runs a full XO code generation pipeline |
+| **goxogen** | v0.4.0 | Code generation scaffolder — generates Go code from YAML templates and runs a full XO code generation pipeline |
 | **gobp** | v0.6.0 | Build pipeline with progress bar — wraps `go build` with visual progress, step counting, and ETA |
 | **xouid** | v0.1.0 | PostgreSQL XOID query generator — generates typed Go functions from UPDATE/INSERT/DELETE SQL with EXPLAIN validation |
 
@@ -64,7 +64,7 @@ Every package has its own AGENTS.md describing purpose, key types, Wire integrat
 ## Features
 
 - **Code Scaffolding** — generate Go project structures from YAML configs with `goxogen -runtype=init`
-- **XO Code Generation Pipeline** — 7-step pipeline: schema → models → query functions (one/many/UID) → repo extraction → formatting/vetting
+- **XO Code Generation Pipeline** — 8-step pipeline: schema → models → query functions (one/many/UID) → repo extraction → aggregate repo → formatting/vetting
 - **Build Progress Bar** — `gobp` wraps `go build` with dry-run step counting, ANSI progress bar, time/ETA display, and error aggregation
 - **PostgreSQL Query Generation** — `xouid` validates SQL via EXPLAIN, parses `%%param type%%` descriptors, and generates typed Go query functions using Go templates
 - **Google Wire DI** — clean dependency injection across all three apps with proper cleanup ordering
@@ -131,7 +131,7 @@ go test ./... -v
 
 ## XO Code Generation Pipeline
 
-When goxogen runs with `-runtype=xo -config=config.yaml`, it executes a full 7-step pipeline that generates Go code from a PostgreSQL database schema:
+When goxogen runs with `-runtype=xo -config=config.yaml`, it executes a full 8-step pipeline that generates Go code from a PostgreSQL database schema:
 
 ### Config YAML Structure
 
@@ -152,6 +152,7 @@ config:
     package: gen         # Go package name for generated code
     queries: ./queries   # SQL queries directory
     ignore_fields: created_at,updated_at  # fields to skip in generation
+    db_name: Mydb                         # optional, overrides db.name for Db{Name}Repo struct
 ```
 
 ### Pipeline Steps
@@ -164,7 +165,8 @@ config:
 | 4 | **extractRepo** | Extracts `@repo-start`/`@repo-end` blocks → `*-repo.xo.go` repository files |
 | 5 | **removeXoXouid** | Deletes temporary `.xo-xouid.go` files |
 | 6 | **cleanXoXouidSourceBlocks** | Removes `@repo-start`/`@repo-end` markers from `.xo.go` and `.xouid.go` |
-| 7 | **goFormatCode** | Runs `go fmt`, `goimports -w`, `go vet` for clean output |
+| 7 | **generateDbRepo** | Scans `*-repo.xo.go`, generates `a-db-repo.go` with aggregate `Db{DbName}Repo` struct + `NewDb{DbName}Repository` constructor |
+| 8 | **goFormatCode** | Runs `go fmt`, `goimports -w`, `go vet` for clean output |
 
 SQL query files follow the naming convention `TypeName-FuncName.sql` and are organized in subdirectories:
 - `queries/one/` — single-row queries

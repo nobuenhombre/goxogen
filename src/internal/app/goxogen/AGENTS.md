@@ -18,7 +18,7 @@
 | `domain/templates/` | 16 `.tpl` файлов XO-шаблонов (Postgres, MSSQL, MySQL, Oracle, xo_db, xouid) |
 | `log/log-file.go` | `ILogFile` — перенаправление `log` в файл |
 | `log/provider.go` | `logfile.ProviderSet` + `ProvideLogFile()` |
-| `version/version.go` | `const Version = "v0.3.0"` |
+| `version/version.go` | `const Version = "v0.4.0"` |
 
 ## Ключевые типы
 

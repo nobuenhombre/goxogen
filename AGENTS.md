@@ -99,7 +99,7 @@ goxogen/
 
 | App | Current version |
 |-----|----------------|
-| goxogen | v0.3.0 |
+| goxogen | v0.4.0 |
 | gobp | v0.6.0 |
 | xouid | v0.1.0 |
 
@@ -198,7 +198,7 @@ go test ./... -v
 
 ## XO Code Generation Pipeline (goxogen -runtype=xo)
 
-goxogen supports a full 7-step code generation pipeline when run with `-runtype=xo`:
+goxogen supports a full 8-step code generation pipeline when run with `-runtype=xo`:
 
 1. **runXO** — Deletes old `.xo.go` and `.xouid.go` files, then runs:
    - `xo basic` — schema-based model generation
@@ -211,7 +211,8 @@ goxogen supports a full 7-step code generation pipeline when run with `-runtype=
 4. **extractRepo** — Extracts `@repo-start`/`@repo-end` blocks → `*-repo.xo.go`
 5. **removeXoXouid** — Deletes temp `.xo-xouid.go` files
 6. **cleanXoXouidSourceBlocks** — Removes `@repo-start`/`@repo-end` markers from `.xo.go` and `.xouid.go`
-7. **goFormatCode** — Runs `go fmt`, `goimports -w`, `go vet`
+7. **generateDbRepo** — Scans `*-repo.xo.go`, generates `a-db-repo.go` with aggregate `Db{DbName}Repo` struct + `NewDb{DbName}Repository` constructor
+8. **goFormatCode** — Runs `go fmt`, `goimports -w`, `go vet`
 
 Config YAML structure (`-config config.yaml`):
 ```yaml
@@ -231,6 +232,7 @@ config:
     package: gen
     queries: ./queries
     ignore_fields: created_at,updated_at
+    db_name: Mydb  # optional, overrides db.name for Db{Name}Repo struct
 ```
 
 ## Gotchas
