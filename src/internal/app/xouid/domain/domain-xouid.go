@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"text/template"
@@ -107,7 +108,7 @@ func (d *AppDomain) CheckTemplatesExists() error {
 	templates := []string{TemplateNewPackage, TemplateQuery}
 
 	for _, templateStr := range templates {
-		if !futi.FileExists(fmt.Sprintf("%v%v", d.cliConfig.GetTemplatePath(), templateStr)) {
+		if !futi.FileExists(filepath.Join(d.cliConfig.GetTemplatePath(), templateStr)) {
 			return &TemplateNotFoundError{
 				Template: templateStr,
 			}
@@ -225,7 +226,7 @@ func (d *AppDomain) CheckExplainSQLInPostgresql(qp *[]QueryParam) (*[]string, er
 func (d *AppDomain) CreateFuncQuery(qp *[]QueryParam) (string, error) {
 	normalSQL := d.CreateSQLQueryNormal(qp)
 
-	t, err := template.ParseFiles(fmt.Sprintf("%v%v", d.cliConfig.GetTemplatePath(), TemplateQuery))
+	t, err := template.ParseFiles(filepath.Join(d.cliConfig.GetTemplatePath(), TemplateQuery))
 	if err != nil {
 		return "", ge.Pin(err)
 	}
@@ -248,7 +249,7 @@ func (d *AppDomain) CreateFuncQuery(qp *[]QueryParam) (string, error) {
 
 // CreateNewPackage renders the package header template.
 func (d *AppDomain) CreateNewPackage() (string, error) {
-	t, err := template.ParseFiles(fmt.Sprintf("%v%v", d.cliConfig.GetTemplatePath(), TemplateNewPackage))
+	t, err := template.ParseFiles(filepath.Join(d.cliConfig.GetTemplatePath(), TemplateNewPackage))
 	if err != nil {
 		return "", ge.Pin(err)
 	}

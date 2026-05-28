@@ -494,6 +494,9 @@ func (d *AppDomain) extractRepoFile(outdir, file, pkg string) error {
 	buf.WriteString("}\n\n")
 
 	// Copy method implementations from @repo-start/@repo-end blocks (excluding markers)
+	// Normalize receiver types to match the struct name (fixes mismatch
+	// when xo-generated code uses {{ .Name }}Repository and xouid-generated
+	// code uses {{ .Type }}Repository with different casing).
 	inBlock = false
 	for _, line := range lines {
 		if strings.Contains(line, "// @repo-start") {
@@ -505,6 +508,24 @@ func (d *AppDomain) extractRepoFile(outdir, file, pkg string) error {
 			continue
 		}
 		if inBlock {
+			// Normalize receiver type: func (repo *XXXRepository) -> func (repo *repoNameRepository)
+			if strings.Contains(line, "func (repo *") && strings.Contains(line, "Repository)") {
+				prefix := "func (repo *"
+				suffix := "Repository)"
+				funcIdx := strings.Index(line, prefix)
+				if funcIdx >= 0 {
+					afterPrefix := line[funcIdx+len(prefix):]
+					endIdx := strings.Index(afterPrefix, suffix)
+					if endIdx > 0 {
+						currentName := afterPrefix[:endIdx]
+						if currentName != repoName {
+							oldReceiver := prefix + currentName + suffix
+							newReceiver := prefix + repoName + suffix
+							line = strings.Replace(line, oldReceiver, newReceiver, 1)
+						}
+					}
+				}
+			}
 			buf.WriteString(line + "\n")
 		}
 	}
@@ -651,6 +672,7 @@ func (d *AppDomain) goFormatCode(path string) error {
 		errMsg := strings.TrimSpace(string(output))
 		if errMsg != "" {
 			log.Printf("[xo] go vet error: %s", errMsg)
+			return fmt.Errorf("go vet failed: %s", errMsg)
 		}
 		return fmt.Errorf("go vet failed: %w", err)
 	}

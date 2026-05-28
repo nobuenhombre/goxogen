@@ -312,7 +312,9 @@ ORDER BY
             return nil, err
         }
 
+        {{- if .PrimaryKey }}
         {{ $short }}.SetExists(true)
+        {{- end }}
 
         res = append(res, &{{ $short }})
     }
@@ -381,8 +383,10 @@ LIMIT 1
         return nil, err
     }
 
+    {{- if .PrimaryKey }}
     {{ $short }}._exists = true
     {{ $short }}._deleted = false
+    {{- end }}
 
     return &{{ $short }}, nil
 }
