@@ -15,14 +15,18 @@
 | `domain/domain-app.go` | `DomainService{}.Run()` — бизнес-логика XO-генерации |
 | `domain/provider.go` | `domainapp.ProviderSet` + `ProvideDomain()` |
 | `domain/templates.go` | Embedded XO-шаблоны через `//go:embed templates/*.tpl` |
-| `domain/templates/` | 16 `.tpl` файлов XO-шаблонов (Postgres, MSSQL, MySQL, Oracle, xo_db, xouid) |
+| `domain/templates/` | 18 `.tpl` файлов — XO-шаблоны + `a-db-repo.go.tpl` для шага 7 + `provider.go.tpl` для шага 8 |
+| `domain/step-7-generate-db-repo.go` | Шаг 7: генерация `a-db-repo.go` через embedded шаблон `a-db-repo.go.tpl` (`text/template`) |
+| `domain/step-8-generate-provider.go` | Шаг 8: генерация `provider.go` через embedded шаблон `provider.go.tpl` (`text/template`) |
+| `domain/xo-gen.go` | 9-шаговый пайплайн XO-генерации (runXO, replaceInterfaceToAny, glueXoXouid, extractRepo, removeXoXouid, cleanXoXouidSourceBlocks, generateDbRepo, generateProvider, goFormatCode) |
+| `domain/xo-config.go` | Конфигурация XO-пайплайна, загрузка YAML, resolveDbName |
 | `log/log-file.go` | `ILogFile` — перенаправление `log` в файл |
 | `log/provider.go` | `logfile.ProviderSet` + `ProvideLogFile()` |
-| `version/version.go` | `const Version = "v0.4.0"` |
+| `version/version.go` | `const Version = "v0.16.0"` |
 
 ## Ключевые типы
 
-- **cli.Config** — структура с тегами `cli:\"flag[desc]:type=default\"`
+- **cli.Config** — структура с тегами `cli:"flag[desc]:type=default"`
 - **configapp.Config** — структура с YAML-полями (пока пустая)
 - **domainapp.DomainService** — интерфейс `{ Run() error }`
 - **logfile.LogFile** — файловый логгер (перенаправляет `log.SetOutput`)

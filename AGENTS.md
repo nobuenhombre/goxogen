@@ -43,9 +43,9 @@ goxogen/
 │   │       │   ├── AGENTS.md
 │   │       │   ├── cli/        # CLI flags: config, log, version
 │   │       │   ├── config/     # YAML config load/save (app-level, generic)
-│   │       │   ├── domain/     # XO pipeline logic (8 steps) + embedded templates
+│   │       │   ├── domain/     # XO pipeline logic (9 steps) + embedded templates
 │   │       │   ├── log/        # Log file redirection
-│   │       │   └── version/    # v0.9.0
+│   │       │   └── version/    # v0.16.0
 │   │       ├── gobp/           # cli + domain + version
 │   │       │   ├── AGENTS.md
 │   │       │   ├── cli/        # CLI flags: binary, out, verbose, full-rebuild
@@ -103,7 +103,7 @@ goxogen/
 
 | App | Current version |
 |-----|----------------|
-| goxogen | v0.9.0 |
+| goxogen | v0.16.0 |
 | gobp | v0.7.0 |
 | xouid | v0.1.0 |
 
@@ -202,7 +202,7 @@ go test ./... -v
 
 ## XO Code Generation Pipeline
 
-goxogen runs a full 8-step code generation pipeline from a YAML config (the app has no `-runtype` flag — the pipeline is the only mode):
+goxogen runs a full 9-step code generation pipeline from a YAML config (the app has no `-runtype` flag — the pipeline is the only mode):
 
 1. **runXO** — Deletes old `.xo.go` and `.xouid.go` files, then runs:
    - `xo basic` — schema-based model generation (PostgreSQL, MSSQL, MySQL, Oracle — 14 embedded templates)
@@ -215,12 +215,13 @@ goxogen runs a full 8-step code generation pipeline from a YAML config (the app 
 4. **extractRepo** — Extracts `@repo-start`/`@repo-end` blocks → `*-repo.xo.go`
 5. **removeXoXouid** — Deletes temp `.xo-xouid.go` files
 6. **cleanXoXouidSourceBlocks** — Removes `@repo-start`/`@repo-end` markers from `.xo.go` and `.xouid.go`
-7. **generateDbRepo** — Scans `*-repo.xo.go`, generates `a-db-repo.go` with aggregate `Db{DbName}Repo` struct + `NewDb{DbName}Repository` constructor
-8. **goFormatCode** — Runs `go fmt`, `goimports -w`, `go vet`
+7. **generateDbRepo** — Scans `*-repo.xo.go`, generates `a-db-repo.go` via embedded `a-db-repo.go.tpl` template (`text/template`) with aggregate `Db{DbName}Repo` struct + `NewDb{DbName}Repository` constructor (creates DB connection internally via `pgxdb.NewDB`) + `Close()` method
+8. **generateProvider** — Generates `provider.go` with a Wire `ProviderSet{DbName}` that exposes the aggregate DbRepo constructor as a Wire provider with cleanup
+9. **goFormatCode** — Runs `go fmt`, `goimports -w`, `go vet`
 
-### Embedded Templates (14 files)
+### Embedded Templates (16 files)
 
-Templates are embedded via `//go:embed` and extracted to a temp directory at runtime:
+Templates are embedded via `//go:embed templates/*.tpl`. 14 XO templates are extracted to a temp directory at runtime for the xo CLI. The `a-db-repo.go.tpl` template is loaded directly from the embedded FS via `text/template` for step 7.
 
 | Template | Purpose |
 |----------|---------|
@@ -238,6 +239,7 @@ Templates are embedded via `//go:embed` and extracted to a temp directory at run
 | `xo_package.go.tpl` | Package header |
 | `xouid_package.go.tpl` | XOID package header |
 | `xouid_query.go.tpl` | XOID query function |
+| `a-db-repo.go.tpl` | Aggregate DbRepo struct template (used by generateDbRepo step 7) |
 
 ### Config YAML structure (`-config config.yaml`)
 
@@ -276,7 +278,7 @@ Shared ANSI progress bar used by both goxogen and gobp. Provides:
 
 ## Gotchas
 
-- **Embedded шаблоны:** XO-шаблоны встроены в бинарник через `//go:embed` и извлекаются в `os.MkdirTemp` при запуске. Не нужно указывать `templates` в конфиге — всегда используются шаблоны из `src/internal/app/goxogen/domain/templates/`
+- **Embedded шаблоны:** XO-шаблоны встроены в бинарник через `//go:embed` и извлекаются в `os.MkdirTemp` при запуске. `a-db-repo.go.tpl` загружается напрямую из встроенной FS через `text/template` (step 7). Не нужно указывать `templates` в конфиге — всегда используются шаблоны из `src/internal/app/goxogen/domain/templates/`
 - **`go vet файл.go` даёт `undefined: Service`** в provider.go — всегда использовать `go vet ./...`
 - **Версионирование:** только через `-version` перед Wire init — после Wire подключена БД/лог
 - **Wire cleanup:** порядок cleanup обратный порядку создания — важно для закрытия подключений

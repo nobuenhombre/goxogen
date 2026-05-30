@@ -10,7 +10,7 @@
 
 | Application | Version | Description |
 |-------------|---------|-------------|
-| **goxogen** | v0.9.0 | XO code generation pipeline — generates Go models and query functions from PostgreSQL schema with an 8-step automated pipeline |
+| **goxogen** | v0.16.0 | XO code generation pipeline — generates Go models and query functions from PostgreSQL schema with a 9-step automated pipeline |
 | **gobp** | v0.7.0 | Build pipeline with progress bar — wraps `go build` with dry-run step counting, visual progress, ETA, and error aggregation |
 | **xouid** | v0.1.0 | PostgreSQL XOID query generator — generates typed Go functions from UPDATE/INSERT/DELETE SQL with EXPLAIN validation |
 
@@ -64,7 +64,7 @@ Every package has its own AGENTS.md describing purpose, key types, Wire integrat
 
 ## Features
 
-- **XO Code Generation Pipeline** — 8-step pipeline: schema → models → query functions (one/many/UID) → repo extraction → aggregate repo → formatting/vetting
+- **XO Code Generation Pipeline** — 9-step pipeline: schema → models → query functions (one/many/UID) → repo extraction → aggregate repo → Wire provider → formatting/vetting
 - **Multi-DB Template Support** — 14 embedded templates for PostgreSQL, MSSQL, MySQL, and Oracle type generation
 - **Build Progress Bar** — `gobp` wraps `go build` with dry-run step counting, ANSI progress bar, time/ETA display, and error aggregation
 - **PostgreSQL Query Generation** — `xouid` validates SQL via EXPLAIN, parses `%%param type%%` descriptors, and generates typed Go query functions using Go templates
@@ -133,7 +133,7 @@ go test ./... -v
 
 ## XO Code Generation Pipeline
 
-goxogen runs its 8-step code generation pipeline when executed with `-config=config.yaml`. It connects to a PostgreSQL database, generates models and query functions, extracts repository interfaces, and produces clean, formatted Go code.
+goxogen runs its 9-step code generation pipeline when executed with `-config=config.yaml`. It connects to a PostgreSQL database, generates models and query functions, extracts repository interfaces, and produces clean, formatted Go code.
 
 ### Config YAML Structure
 
@@ -167,8 +167,9 @@ config:
 | 4 | **extractRepo** | Extracts `@repo-start`/`@repo-end` blocks → `*-repo.xo.go` repository files |
 | 5 | **removeXoXouid** | Deletes temporary `.xo-xouid.go` files |
 | 6 | **cleanXoXouidSourceBlocks** | Removes `@repo-start`/`@repo-end` markers from `.xo.go` and `.xouid.go` |
-| 7 | **generateDbRepo** | Scans `*-repo.xo.go`, generates `a-db-repo.go` with aggregate `Db{DbName}Repo` struct + `NewDb{DbName}Repository` constructor |
-| 8 | **goFormatCode** | Runs `go fmt`, `goimports -w`, `go vet` for clean output |
+|| 7 | **generateDbRepo** | Scans `*-repo.xo.go`, generates `a-db-repo.go` via embedded `a-db-repo.go.tpl` template (`text/template`) with aggregate `Db{DbName}Repo` struct + `NewDb{DbName}Repository` constructor (creates DB connection internally via `pgxdb.NewDB`) + `Close()` method |
+| 8 | **generateProvider** | Generates `provider.go` with Wire `ProviderSet`, exposes `Provider{DbName}` with cleanup |
+| 9 | **goFormatCode** | Runs `go fmt`, `goimports -w`, `go vet` for clean output |
 
 SQL query files follow the naming convention `TypeName-FuncName.sql` and are organized in subdirectories:
 - `queries/one/` — single-row queries
@@ -177,7 +178,7 @@ SQL query files follow the naming convention `TypeName-FuncName.sql` and are org
 
 ### Embedded Templates
 
-14 Go templates are embedded into the goxogen binary via `//go:embed` and extracted at runtime:
+15 Go templates are embedded into the goxogen binary via `//go:embed templates/*.tpl`. 14 XO templates are extracted at runtime for the xo CLI. The `a-db-repo.go.tpl` template is loaded directly from the embedded FS via `text/template` for step 7.
 
 | Template | Purpose |
 |----------|---------|
@@ -194,7 +195,8 @@ SQL query files follow the naming convention `TypeName-FuncName.sql` and are org
 | `xo_db.go.tpl` | Database connection wrapper |
 | `xo_package.go.tpl` | Package header |
 | `xouid_package.go.tpl` | XOID package header |
-| `xouid_query.go.tpl` | XOID query function |
+|| `xouid_query.go.tpl` | XOID query function |
+|| `a-db-repo.go.tpl` | Aggregate DbRepo struct template (used by generateDbRepo) |
 
 ## Dependency Injection (Google Wire)
 

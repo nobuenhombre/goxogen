@@ -13,8 +13,9 @@
 | `xo-gen.go` | `Run()` — 8-шаговый pipeline генерации + все step-функции |
 | `xo-config.go` | `XOConfig` — YAML-конфиг для XO, разбор connection string |
 | `provider.go` | `ProviderSet` + `ProvideDomain(cli.Service)` |
-| `templates.go` | Embedded XO-шаблоны (`//go:embed templates/*.tpl`), экспорт `TemplatesDir()` |
-| `templates/` | 16 файлов `.tpl` — XO-шаблоны для генерации Go-кода (Postgres, MSSQL, MySQL, Oracle, xo_db, xouid) |
+| `templates.go` | Embedded XO-шаблоны + `a-db-repo.go.tpl` (`//go:embed templates/*.tpl`), экспорт `TemplatesDir()` |
+| `templates/` | 17 файлов `.tpl` — 16 XO-шаблонов для генерации Go-кода (Postgres, MSSQL, MySQL, Oracle, xo_db, xouid) + `a-db-repo.go.tpl` для шага 7 |
+| `step-7-generate-db-repo.go` | Шаг 7: генерация `a-db-repo.go` через embedded шаблон `a-db-repo.go.tpl` (`text/template`)
 
 ## Ключевые типы
 
@@ -30,7 +31,7 @@
 4. **extractRepo** — извлечение @repo блоков в *-repo.xo.go
 5. **removeXoXouid** — удаление .xo-xouid.go
 6. **cleanXoXouidSourceBlocks** — очистка @repo маркеров из исходников
-7. **generateDbRepo** — генерация агрегатного Db{Name}Repo (a-db-repo.go)
+7. **generateDbRepo** — генерация агрегатного Db{Name}Repo (a-db-repo.go) через embedded шаблон `a-db-repo.go.tpl` (`text/template`) с конструктором, создающим подключение к БД через `pgxdb.NewDB`, и методом `Close()`
 8. **goFormatCode** — go fmt, goimports, go vet (с захватом ошибок)
 
 ## Прогресс-бар
