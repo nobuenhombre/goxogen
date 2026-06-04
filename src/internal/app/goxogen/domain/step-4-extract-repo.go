@@ -7,13 +7,15 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/nobuenhombre/suikat/pkg/ge"
 )
 
 // extractRepo extracts @repo-start/@repo-end blocks from .xo-xouid.go files into *-repo.xo.go files.
 func (d *AppDomain) extractRepo(outdir, pkg string) error {
 	files, err := filepath.Glob(filepath.Join(outdir, "*.xo-xouid.go"))
 	if err != nil {
-		return err
+		return ge.Pin(err)
 	}
 
 	sort.Strings(files)
@@ -23,7 +25,8 @@ func (d *AppDomain) extractRepo(outdir, pkg string) error {
 			continue
 		}
 
-		if err := d.extractRepoFile(outdir, file, pkg); err != nil {
+		err = d.extractRepoFile(outdir, file, pkg)
+		if err != nil {
 			log.Printf("[xo] Warning: %v (skipping)", err)
 			continue
 		}
@@ -36,14 +39,14 @@ func (d *AppDomain) extractRepo(outdir, pkg string) error {
 func (d *AppDomain) extractRepoFile(outdir, file, pkg string) error {
 	data, err := os.ReadFile(file)
 	if err != nil {
-		return fmt.Errorf("reading %s: %w", file, err)
+		return ge.Pin(fmt.Errorf("reading %s: %w", file, err))
 	}
 
 	content := string(data)
 
 	// Check for markers
 	if !strings.Contains(content, "// @repo-start") || !strings.Contains(content, "// @repo-end") {
-		return fmt.Errorf("markers not found in %s", filepath.Base(file))
+		return ge.Pin(fmt.Errorf("markers not found in %s", filepath.Base(file)))
 	}
 
 	// Extract repository name
@@ -74,7 +77,7 @@ func (d *AppDomain) extractRepoFile(outdir, file, pkg string) error {
 	}
 
 	if repoName == "" {
-		return fmt.Errorf("no repository name found in %s", filepath.Base(file))
+		return ge.Pin(fmt.Errorf("no repository name found in %s", filepath.Base(file)))
 	}
 
 	// Determine output file name
@@ -162,8 +165,9 @@ func (d *AppDomain) extractRepoFile(outdir, file, pkg string) error {
 		}
 	}
 
-	if err := os.WriteFile(outputFile, []byte(buf.String()), 0644); err != nil {
-		return fmt.Errorf("writing %s: %w", outputFile, err)
+	err = os.WriteFile(outputFile, []byte(buf.String()), 0644)
+	if err != nil {
+		return ge.Pin(fmt.Errorf("writing %s: %w", outputFile, err))
 	}
 
 	log.Printf("[xo] Created repo file: %s", filepath.Base(outputFile))

@@ -322,6 +322,52 @@ ORDER BY
     return res, nil
 }
 
+// GetAll{{ .Name }}WithPagination returns a paginated set of rows from '{{ .Schema }}.{{ .Table.TableName }}',
+func GetAll{{ .Name }}WithPagination(db pgxdb.DBQuery, limit, offset int) ([]*{{ .Name }}, error) {
+	ctx := context.Background()
+
+	start := time.Now()
+
+	// language=SQL
+    const sqlstr = `
+SELECT
+{{ colnames .Fields }}
+FROM {{ $table }}
+ORDER BY
+	id ASC
+LIMIT $1 OFFSET $2
+`
+
+    q, err := db.Query(ctx, sqlstr, limit, offset)
+
+	db.WriteLog(sqlstr, time.Since(start), limit, offset)
+
+    if err != nil {
+        return nil, err
+    }
+    defer q.Close()
+
+    // load results
+    var res []*{{ .Name }}
+    for q.Next() {
+        {{ $short }} := {{ .Name }}{}
+
+        // scan
+        err = q.Scan({{ fieldnames .Fields (print "&" $short) }})
+        if err != nil {
+            return nil, err
+        }
+
+        {{- if .PrimaryKey }}
+        {{ $short }}.SetExists(true)
+        {{- end }}
+
+        res = append(res, &{{ $short }})
+    }
+
+    return res, nil
+}
+
 // Get{{ .Name }}sBySQL returns rows from '{{ .Schema }}.{{ .Table.TableName }}' by your SQL,
 func Get{{ .Name }}sBySQL(db pgxdb.DBQuery, sqlstr string, args ...interface{}) ([]*{{ .Name }}, error) {
 	ctx := context.Background()
@@ -331,6 +377,41 @@ func Get{{ .Name }}sBySQL(db pgxdb.DBQuery, sqlstr string, args ...interface{}) 
     q, err := db.Query(ctx, sqlstr, args...)
 
 	db.WriteLog(sqlstr, time.Since(start), args...)
+
+    if err != nil {
+        return nil, err
+    }
+    defer q.Close()
+
+    // load results
+    var res []*{{ .Name }}
+    for q.Next() {
+        {{ $short }} := {{ .Name }}{}
+
+        // scan
+        err = q.Scan({{ fieldnames .Fields (print "&" $short) }})
+        if err != nil {
+            return nil, err
+        }
+
+        res = append(res, &{{ $short }})
+    }
+
+    return res, nil
+}
+
+// Get{{ .Name }}sBySQLWithPagination returns a paginated set of rows from '{{ .Schema }}.{{ .Table.TableName }}' by your SQL,
+func Get{{ .Name }}sBySQLWithPagination(db pgxdb.DBQuery, sqlstr string, limit, offset int, args ...interface{}) ([]*{{ .Name }}, error) {
+	ctx := context.Background()
+
+	start := time.Now()
+
+    paginatedSQL := sqlstr + fmt.Sprintf("\nLIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+    paginatedArgs := append(args, limit, offset)
+
+    q, err := db.Query(ctx, paginatedSQL, paginatedArgs...)
+
+	db.WriteLog(paginatedSQL, time.Since(start), paginatedArgs...)
 
     if err != nil {
         return nil, err
@@ -406,6 +487,21 @@ func New{{ .Name }}Repository(db pgxdb.DBQuery) *{{ .Name }}Repository {
 // GetAll возвращает все записи
 func (repo *{{ .Name }}Repository) GetAll() ([]*{{ .Name }}, error) {
     return GetAll{{ .Name }}(repo.db)
+}
+
+// GetAllWithPagination возвращает записи с пагинацией
+func (repo *{{ .Name }}Repository) GetAllWithPagination(limit, offset int) ([]*{{ .Name }}, error) {
+    return GetAll{{ .Name }}WithPagination(repo.db, limit, offset)
+}
+
+// GetBySQL возвращает записи по произвольному SQL
+func (repo *{{ .Name }}Repository) GetBySQL(sqlstr string, args ...interface{}) ([]*{{ .Name }}, error) {
+    return Get{{ .Name }}sBySQL(repo.db, sqlstr, args...)
+}
+
+// GetBySQLWithPagination возвращает записи по произвольному SQL с пагинацией
+func (repo *{{ .Name }}Repository) GetBySQLWithPagination(sqlstr string, limit, offset int, args ...interface{}) ([]*{{ .Name }}, error) {
+    return Get{{ .Name }}sBySQLWithPagination(repo.db, sqlstr, limit, offset, args...)
 }
 
 // GetLastID возвращает последний ID

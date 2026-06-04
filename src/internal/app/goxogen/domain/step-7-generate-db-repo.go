@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+
+	"github.com/nobuenhombre/suikat/pkg/ge"
 )
 
 // generateDbRepo scans all *-repo.xo.go files and generates an aggregate a-db-repo.go
@@ -19,7 +21,7 @@ func (d *AppDomain) generateDbRepo(outdir string, cfg *XOConfig) error {
 
 	repoFiles, err := filepath.Glob(filepath.Join(outdir, "*-repo.xo.go"))
 	if err != nil {
-		return fmt.Errorf("listing repo files: %w", err)
+		return ge.Pin(fmt.Errorf("listing repo files: %w", err))
 	}
 
 	if len(repoFiles) == 0 {
@@ -35,7 +37,7 @@ func (d *AppDomain) generateDbRepo(outdir string, cfg *XOConfig) error {
 	for _, file := range repoFiles {
 		data, err := os.ReadFile(file)
 		if err != nil {
-			return fmt.Errorf("reading %s: %w", file, err)
+			return ge.Pin(fmt.Errorf("reading %s: %w", file, err))
 		}
 
 		name := extractRepoInterfaceName(string(data))
@@ -57,12 +59,12 @@ func (d *AppDomain) generateDbRepo(outdir string, cfg *XOConfig) error {
 	// Load and execute the template
 	tplContent, err := templateFS.ReadFile("templates/a-db-repo.go.tpl")
 	if err != nil {
-		return fmt.Errorf("reading embedded template a-db-repo.go.tpl: %w", err)
+		return ge.Pin(fmt.Errorf("reading embedded template a-db-repo.go.tpl: %w", err))
 	}
 
 	tmpl, err := template.New("a-db-repo.go.tpl").Parse(string(tplContent))
 	if err != nil {
-		return fmt.Errorf("parsing db-repo template: %w", err)
+		return ge.Pin(fmt.Errorf("parsing db-repo template: %w", err))
 	}
 
 	data := struct {
@@ -76,13 +78,15 @@ func (d *AppDomain) generateDbRepo(outdir string, cfg *XOConfig) error {
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("executing db-repo template: %w", err)
+	err = tmpl.Execute(&buf, data)
+	if err != nil {
+		return ge.Pin(fmt.Errorf("executing db-repo template: %w", err))
 	}
 
 	outputFile := filepath.Join(outdir, "a-db-repo.go")
-	if err := os.WriteFile(outputFile, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("writing %s: %w", outputFile, err)
+	err = os.WriteFile(outputFile, buf.Bytes(), 0644)
+	if err != nil {
+		return ge.Pin(fmt.Errorf("writing %s: %w", outputFile, err))
 	}
 
 	log.Printf("[xo] Created aggregate db-repo file: a-db-repo.go")

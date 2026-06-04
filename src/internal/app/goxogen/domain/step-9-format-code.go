@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/nobuenhombre/suikat/pkg/ge"
 )
 
 // goFormatCode runs go fmt, goimports, and go vet.
@@ -22,7 +24,7 @@ func (d *AppDomain) goFormatCode(path string) error {
 		if errMsg != "" {
 			log.Printf("[xo] go fmt error: %s", errMsg)
 		}
-		return fmt.Errorf("go fmt failed: %w", err)
+		return ge.Pin(fmt.Errorf("go fmt failed: %w", err))
 	}
 	// Print formatting changes (modified filenames) if any
 	if trimmed := strings.TrimSpace(string(output)); trimmed != "" {
@@ -34,7 +36,7 @@ func (d *AppDomain) goFormatCode(path string) error {
 
 	goFiles, err := filepath.Glob(filepath.Join(path, "*.go"))
 	if err != nil {
-		return fmt.Errorf("listing go files: %w", err)
+		return ge.Pin(fmt.Errorf("listing go files: %w", err))
 	}
 
 	if len(goFiles) > 0 {
@@ -64,9 +66,9 @@ func (d *AppDomain) goFormatCode(path string) error {
 		errMsg := strings.TrimSpace(string(output))
 		if errMsg != "" {
 			log.Printf("[xo] go vet error: %s", errMsg)
-			return fmt.Errorf("go vet failed: %s", errMsg)
+			return ge.Pin(fmt.Errorf("go vet failed: %s", errMsg))
 		}
-		return fmt.Errorf("go vet failed: %w", err)
+		return ge.Pin(fmt.Errorf("go vet failed: %w", err))
 	}
 	if trimmed := strings.TrimSpace(string(output)); trimmed != "" {
 		log.Printf("[xo] go vet output: %s", trimmed)

@@ -8,41 +8,50 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/nobuenhombre/suikat/pkg/ge"
 )
 
 // runXO orchestrates all xo/xouid sub-process calls.
 func (d *AppDomain) runXO(cs, csuid, outdir, ignoreFields, pkg, templates, queries string) error {
 	// Delete old generated files
-	if err := d.deleteGlob(filepath.Join(outdir, "*.xo.go")); err != nil {
-		return err
+	err := d.deleteGlob(filepath.Join(outdir, "*.xo.go"))
+	if err != nil {
+		return ge.Pin(err)
 	}
-	if err := d.deleteGlob(filepath.Join(outdir, "*.xouid.go")); err != nil {
-		return err
+	err = d.deleteGlob(filepath.Join(outdir, "*.xouid.go"))
+	if err != nil {
+		return ge.Pin(err)
 	}
 
 	// runXoBasic — generate models from database schema
-	if err := d.runXoBasic(cs, outdir, ignoreFields, pkg, templates); err != nil {
-		return fmt.Errorf("xo basic: %w", err)
+	err = d.runXoBasic(cs, outdir, ignoreFields, pkg, templates)
+	if err != nil {
+		return ge.Pin(fmt.Errorf("xo basic: %w", err))
 	}
 
 	// runXoQueriesOne
-	if err := d.runXoQueries(cs, outdir, ignoreFields, queries, pkg, templates, "one", true); err != nil {
-		return fmt.Errorf("xo queries one: %w", err)
+	err = d.runXoQueries(cs, outdir, ignoreFields, queries, pkg, templates, "one", true)
+	if err != nil {
+		return ge.Pin(fmt.Errorf("xo queries one: %w", err))
 	}
 
 	// runXoQueriesMany
-	if err := d.runXoQueries(cs, outdir, ignoreFields, queries, pkg, templates, "many", false); err != nil {
-		return fmt.Errorf("xo queries many: %w", err)
+	err = d.runXoQueries(cs, outdir, ignoreFields, queries, pkg, templates, "many", false)
+	if err != nil {
+		return ge.Pin(fmt.Errorf("xo queries many: %w", err))
 	}
 
 	// runXoQueriesUID — uses xouid tool
-	if err := d.runXoQueriesUID(csuid, outdir, queries, pkg, templates); err != nil {
-		return fmt.Errorf("xo queries uid: %w", err)
+	err = d.runXoQueriesUID(csuid, outdir, queries, pkg, templates)
+	if err != nil {
+		return ge.Pin(fmt.Errorf("xo queries uid: %w", err))
 	}
 
 	// Delete stored procedure files
-	if err := d.deleteGlob(filepath.Join(outdir, "sp_*.xo.go")); err != nil {
-		return err
+	err = d.deleteGlob(filepath.Join(outdir, "sp_*.xo.go"))
+	if err != nil {
+		return ge.Pin(err)
 	}
 
 	return nil
@@ -66,7 +75,7 @@ func (d *AppDomain) runXoBasic(cs, outdir, ignoreFields, pkg, templates string) 
 	cmd := exec.Command("xo", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("xo command failed: %w\n%s", err, string(output))
+		return ge.Pin(fmt.Errorf("xo command failed: %w\n%s", err, string(output)))
 	}
 
 	return nil
@@ -77,7 +86,7 @@ func (d *AppDomain) runXoQueries(cs, outdir, ignoreFields, querydir, pkg, templa
 	qdir := filepath.Join(querydir, subdir)
 	sqlFiles, err := filepath.Glob(filepath.Join(qdir, "*.sql"))
 	if err != nil {
-		return fmt.Errorf("listing %s queries: %w", subdir, err)
+		return ge.Pin(fmt.Errorf("listing %s queries: %w", subdir, err))
 	}
 
 	sort.Strings(sqlFiles)
@@ -130,13 +139,13 @@ func (d *AppDomain) runXoQueries(cs, outdir, ignoreFields, querydir, pkg, templa
 		// Read SQL from file
 		sqlData, err := os.ReadFile(filename)
 		if err != nil {
-			return fmt.Errorf("reading %s: %w", filename, err)
+			return ge.Pin(fmt.Errorf("reading %s: %w", filename, err))
 		}
 		cmd.Stdin = strings.NewReader(string(sqlData))
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("xo query %s failed: %w\n%s", filename, err, string(output))
+			return ge.Pin(fmt.Errorf("xo query %s failed: %w\n%s", filename, err, string(output)))
 		}
 	}
 
@@ -148,7 +157,7 @@ func (d *AppDomain) runXoQueriesUID(dsn, outdir, querydir, pkg, templates string
 	qdir := filepath.Join(querydir, "uid")
 	sqlFiles, err := filepath.Glob(filepath.Join(qdir, "*.sql"))
 	if err != nil {
-		return fmt.Errorf("listing uid queries: %w", err)
+		return ge.Pin(fmt.Errorf("listing uid queries: %w", err))
 	}
 
 	sort.Strings(sqlFiles)
@@ -183,7 +192,7 @@ func (d *AppDomain) runXoQueriesUID(dsn, outdir, querydir, pkg, templates string
 		cmd := exec.Command("/usr/local/bin/xouid", args...)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("xouid query %s failed: %w\n%s", filename, err, string(output))
+			return ge.Pin(fmt.Errorf("xouid query %s failed: %w\n%s", filename, err, string(output)))
 		}
 	}
 

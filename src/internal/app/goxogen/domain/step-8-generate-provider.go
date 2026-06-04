@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"text/template"
+
+	"github.com/nobuenhombre/suikat/pkg/ge"
 )
 
 // generateProvider creates a provider.go file with a Wire ProviderSet
@@ -26,12 +28,12 @@ func (d *AppDomain) generateProvider(outdir string, cfg *XOConfig) error {
 	// Load and execute the embedded template
 	tplContent, err := templateFS.ReadFile("templates/provider.go.tpl")
 	if err != nil {
-		return fmt.Errorf("reading embedded template provider.go.tpl: %w", err)
+		return ge.Pin(fmt.Errorf("reading embedded template provider.go.tpl: %w", err))
 	}
 
 	tmpl, err := template.New("provider.go.tpl").Parse(string(tplContent))
 	if err != nil {
-		return fmt.Errorf("parsing provider template: %w", err)
+		return ge.Pin(fmt.Errorf("parsing provider template: %w", err))
 	}
 
 	data := struct {
@@ -43,13 +45,15 @@ func (d *AppDomain) generateProvider(outdir string, cfg *XOConfig) error {
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("executing provider template: %w", err)
+	err = tmpl.Execute(&buf, data)
+	if err != nil {
+		return ge.Pin(fmt.Errorf("executing provider template: %w", err))
 	}
 
 	outputFile := filepath.Join(outdir, "provider.go")
-	if err := os.WriteFile(outputFile, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("writing %s: %w", outputFile, err)
+	err = os.WriteFile(outputFile, buf.Bytes(), 0644)
+	if err != nil {
+		return ge.Pin(fmt.Errorf("writing %s: %w", outputFile, err))
 	}
 
 	log.Printf("[xo] Created Wire provider file: provider.go")

@@ -7,18 +7,22 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/nobuenhombre/suikat/pkg/ge"
 )
 
 // cleanXoXouidSourceBlocks removes @repo-start/@repo-end blocks from .xo.go and .xouid.go files.
 func (d *AppDomain) cleanXoXouidSourceBlocks(dir string) error {
 	// Process .xo.go files
-	if err := d.removeRepoBlocksFromFiles(dir, "*.xo.go", "*-repo.xo.go"); err != nil {
-		return err
+	err := d.removeRepoBlocksFromFiles(dir, "*.xo.go", "*-repo.xo.go")
+	if err != nil {
+		return ge.Pin(err)
 	}
 
 	// Process .xouid.go files
-	if err := d.removeRepoBlocksFromFiles(dir, "*.xouid.go", "*-repo.xo.go"); err != nil {
-		return err
+	err = d.removeRepoBlocksFromFiles(dir, "*.xouid.go", "*-repo.xo.go")
+	if err != nil {
+		return ge.Pin(err)
 	}
 
 	return nil
@@ -28,7 +32,7 @@ func (d *AppDomain) cleanXoXouidSourceBlocks(dir string) error {
 func (d *AppDomain) removeRepoBlocksFromFiles(dir, pattern, excludePattern string) error {
 	files, err := filepath.Glob(filepath.Join(dir, pattern))
 	if err != nil {
-		return err
+		return ge.Pin(err)
 	}
 
 	sort.Strings(files)
@@ -41,7 +45,7 @@ func (d *AppDomain) removeRepoBlocksFromFiles(dir, pattern, excludePattern strin
 
 		data, err := os.ReadFile(file)
 		if err != nil {
-			return fmt.Errorf("reading %s: %w", file, err)
+			return ge.Pin(fmt.Errorf("reading %s: %w", file, err))
 		}
 
 		content := string(data)
@@ -72,8 +76,9 @@ func (d *AppDomain) removeRepoBlocksFromFiles(dir, pattern, excludePattern strin
 			output = strings.TrimSuffix(output, "\n")
 		}
 
-		if err := os.WriteFile(file, []byte(output), 0644); err != nil {
-			return fmt.Errorf("writing %s: %w", file, err)
+		err = os.WriteFile(file, []byte(output), 0644)
+		if err != nil {
+			return ge.Pin(fmt.Errorf("writing %s: %w", file, err))
 		}
 
 		log.Printf("[xo] Cleaned repo blocks from %s", filepath.Base(file))

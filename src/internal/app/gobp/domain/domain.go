@@ -46,7 +46,8 @@ func countSteps(args []string) (int, error) {
 		return 0, ge.Pin(err)
 	}
 
-	if err := cmd.Start(); err != nil {
+	err = cmd.Start()
+	if err != nil {
 		return 0, ge.Pin(err)
 	}
 
@@ -68,11 +69,13 @@ func countSteps(args []string) (int, error) {
 		}
 	}
 
-	if err := cmd.Wait(); err != nil {
+	err = cmd.Wait()
+	if err != nil {
 		return 0, ge.Pin(fmt.Errorf("failed to count build steps: %v", err))
 	}
 
-	if err := scanner.Err(); err != nil {
+	err = scanner.Err()
+	if err != nil {
 		return steps, ge.Pin(fmt.Errorf("scanner error: %v (partial count: %d)", err, steps))
 	}
 
@@ -143,7 +146,8 @@ func (d *AppDomain) Run() error {
 		return ge.Pin(err)
 	}
 
-	if err := cmd.Start(); err != nil {
+	err = cmd.Start()
+	if err != nil {
 		return ge.Pin(err)
 	}
 
@@ -179,7 +183,8 @@ func (d *AppDomain) Run() error {
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
+	err = scanner.Err()
+	if err != nil {
 		return ge.Pin(err)
 	}
 

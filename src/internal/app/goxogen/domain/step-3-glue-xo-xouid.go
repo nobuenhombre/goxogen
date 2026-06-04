@@ -7,13 +7,15 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/nobuenhombre/suikat/pkg/ge"
 )
 
 // glueXoXouid merges .xo.go and matching .xouid.go files into .xo-xouid.go files.
 func (d *AppDomain) glueXoXouid(dir string) error {
 	xoFiles, err := filepath.Glob(filepath.Join(dir, "*.xo.go"))
 	if err != nil {
-		return err
+		return ge.Pin(err)
 	}
 
 	sort.Strings(xoFiles)
@@ -25,7 +27,7 @@ func (d *AppDomain) glueXoXouid(dir string) error {
 
 		xoData, err := os.ReadFile(xoFile)
 		if err != nil {
-			return fmt.Errorf("reading %s: %w", xoFile, err)
+			return ge.Pin(fmt.Errorf("reading %s: %w", xoFile, err))
 		}
 
 		var combined strings.Builder
@@ -35,13 +37,14 @@ func (d *AppDomain) glueXoXouid(dir string) error {
 		if _, err := os.Stat(xouidFile); err == nil {
 			xouidData, err := os.ReadFile(xouidFile)
 			if err != nil {
-				return fmt.Errorf("reading %s: %w", xouidFile, err)
+				return ge.Pin(fmt.Errorf("reading %s: %w", xouidFile, err))
 			}
 			combined.Write(xouidData)
 		}
 
-		if err := os.WriteFile(targetFile, []byte(combined.String()), 0644); err != nil {
-			return fmt.Errorf("writing %s: %w", targetFile, err)
+		err = os.WriteFile(targetFile, []byte(combined.String()), 0644)
+		if err != nil {
+			return ge.Pin(fmt.Errorf("writing %s: %w", targetFile, err))
 		}
 
 		log.Printf("[xo] Glued %s", filepath.Base(targetFile))

@@ -51,22 +51,24 @@ func New(cliConfig cli.Service, db pgxdb.DBQuery) (DomainService, error) {
 
 // Run executes the full xouid generation pipeline.
 func (d *AppDomain) Run() error {
-	if err := d.CheckQuery(); err != nil {
-		return err
+	err := d.CheckQuery()
+	if err != nil {
+		return ge.Pin(err)
 	}
 
-	if err := d.CheckTemplatesExists(); err != nil {
-		return err
+	err = d.CheckTemplatesExists()
+	if err != nil {
+		return ge.Pin(err)
 	}
 
 	qp, err := d.GetQueryParams()
 	if err != nil {
-		return err
+		return ge.Pin(err)
 	}
 
 	plan, err := d.CheckExplainSQLInPostgresql(qp)
 	if err != nil {
-		return err
+		return ge.Pin(err)
 	}
 
 	if d.cliConfig.GetVerbose() {
@@ -75,7 +77,7 @@ func (d *AppDomain) Run() error {
 
 	queryStr, err := d.CreateFuncQuery(qp)
 	if err != nil {
-		return err
+		return ge.Pin(err)
 	}
 
 	return d.WritePackageFile(queryStr)
@@ -95,9 +97,9 @@ func (d *AppDomain) CheckQuery() error {
 	}
 
 	if !found {
-		return &UnknownSQLConstructionError{
+		return ge.Pin(&UnknownSQLConstructionError{
 			Query: d.queryText,
-		}
+		})
 	}
 
 	return nil
@@ -109,9 +111,9 @@ func (d *AppDomain) CheckTemplatesExists() error {
 
 	for _, templateStr := range templates {
 		if !futi.FileExists(filepath.Join(d.cliConfig.GetTemplatePath(), templateStr)) {
-			return &TemplateNotFoundError{
+			return ge.Pin(&TemplateNotFoundError{
 				Template: templateStr,
-			}
+			})
 		}
 	}
 
@@ -129,9 +131,9 @@ func (d *AppDomain) GetQueryParams() (*[]QueryParam, error) {
 		paramParts := strings.Split(cleanParamStr, " ")
 
 		if len(paramParts) != 2 {
-			return nil, &IncorrectQueryParamError{
+			return nil, ge.Pin(&IncorrectQueryParamError{
 				Param: cleanParamStr,
-			}
+			})
 		}
 
 		param := QueryParam{
@@ -185,9 +187,9 @@ func (d *AppDomain) CreateSQLQueryExplain(qp *[]QueryParam) (string, error) {
 			explainSQL = strings.ReplaceAll(explainSQL, descriptor, "'{1,2,3}'::int[]")
 
 		default:
-			return "", &UnknownQueryParamTypeError{
+			return "", ge.Pin(&UnknownQueryParamTypeError{
 				Type: p.Type,
-			}
+			})
 		}
 	}
 
@@ -200,7 +202,7 @@ func (d *AppDomain) CheckExplainSQLInPostgresql(qp *[]QueryParam) (*[]string, er
 
 	explainSQL, err := d.CreateSQLQueryExplain(qp)
 	if err != nil {
-		return nil, err
+		return nil, ge.Pin(err)
 	}
 
 	q, err := d.db.Query(ctx, explainSQL)
@@ -214,7 +216,7 @@ func (d *AppDomain) CheckExplainSQLInPostgresql(qp *[]QueryParam) (*[]string, er
 		r := ""
 		err = q.Scan(&r)
 		if err != nil {
-			return nil, err
+			return nil, ge.Pin(err)
 		}
 		plan = append(plan, r)
 	}
@@ -278,25 +280,25 @@ func (d *AppDomain) WritePackageFile(queryStr string) (err error) {
 	if !futi.FileExists(packageFileName) {
 		packageStr, err = d.CreateNewPackage()
 		if err != nil {
-			return err
+			return ge.Pin(err)
 		}
 
 		err = packageFile.Write(packageStr)
 		if err != nil {
-			return err
+			return ge.Pin(err)
 		}
 	}
 
 	packageStr, err = packageFile.Read()
 	if err != nil {
-		return err
+		return ge.Pin(err)
 	}
 
 	packageStr += queryStr
 
 	err = packageFile.Write(packageStr)
 	if err != nil {
-		return err
+		return ge.Pin(err)
 	}
 
 	return nil
