@@ -132,6 +132,38 @@ ORDER BY
 }
 {{ end }}
 
+// Get{{ .FuncName }}Count retrieves count of rows from '{{ $table }}' by index '{{ .Index.IndexName }}'.
+func Get{{ .FuncName }}Count(db pgxdb.DBQuery{{ goparamlist .Fields true true }}) (int64, error) {
+	var err error
+
+	start := time.Now()
+
+	ctx := context.Background()
+
+	// sql query
+	// language=SQL
+	const sqlstr = `
+SELECT
+	COUNT(*)
+FROM
+	{{ $table }}
+WHERE
+	{{ colnamesquery .Fields " AND " }}
+`
+
+	// run query
+	var count int64
+	err = db.QueryRow(ctx, sqlstr{{ goparamlist .Fields true false }}).Scan(&count)
+
+	db.WriteLog(sqlstr, time.Since(start){{ goparamlist .Fields true false }})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 // ----- Index Methods for {{ .Type.Name }} -----
 
 // @repo-start
@@ -140,6 +172,11 @@ ORDER BY
     // Get{{ .FuncName }} возвращает одну запись по индексу '{{ .Index.IndexName }}'.
     func (repo *{{ $repoName }}) Get{{ .FuncName }}({{ goparamlist .Fields false true }}) (*{{ .Type.Name }}, error) {
         return Get{{ .FuncName }}(repo.db{{ goparamlist .Fields true false }})
+    }
+
+    // Get{{ .FuncName }}Count возвращает количество записей по индексу '{{ .Index.IndexName }}'.
+    func (repo *{{ $repoName }}) Get{{ .FuncName }}Count({{ goparamlist .Fields false true }}) (int64, error) {
+        return Get{{ .FuncName }}Count(repo.db{{ goparamlist .Fields true false }})
     }
 {{- end }}
 
@@ -153,6 +190,11 @@ ORDER BY
     // FindAll{{ .FuncName }}WithPagination возвращает записи по индексу с пагинацией
     func (repo *{{ $repoName }}) FindAll{{ .FuncName }}WithPagination({{ goparamlist .Fields false true }}, limit, offset int) ([]*{{ .Type.Name }}, error) {
         return Get{{ .FuncName }}WithPagination(repo.db{{ goparamlist .Fields true false }}, limit, offset)
+    }
+
+    // FindAll{{ .FuncName }}Count возвращает количество записей по индексу '{{ .Index.IndexName }}'.
+    func (repo *{{ $repoName }}) FindAll{{ .FuncName }}Count({{ goparamlist .Fields false true }}) (int64, error) {
+        return Get{{ .FuncName }}Count(repo.db{{ goparamlist .Fields true false }})
     }
 {{- end }}
 // @repo-end

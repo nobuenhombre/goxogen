@@ -368,6 +368,27 @@ LIMIT $1 OFFSET $2
     return res, nil
 }
 
+// GetAll{{ .Name }}Count returns count of all rows from '{{ .Schema }}.{{ .Table.TableName }}',
+func GetAll{{ .Name }}Count(db pgxdb.DBQuery) (int64, error) {
+	ctx := context.Background()
+
+	start := time.Now()
+
+	// language=SQL
+	const sqlstr = `SELECT COUNT(*) FROM {{ $table }}`
+
+	var count int64
+	err := db.QueryRow(ctx, sqlstr).Scan(&count)
+
+	db.WriteLog(sqlstr, time.Since(start))
+
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 // Get{{ .Name }}sBySQL returns rows from '{{ .Schema }}.{{ .Table.TableName }}' by your SQL,
 func Get{{ .Name }}sBySQL(db pgxdb.DBQuery, sqlstr string, args ...interface{}) ([]*{{ .Name }}, error) {
 	ctx := context.Background()
@@ -435,6 +456,26 @@ func Get{{ .Name }}sBySQLWithPagination(db pgxdb.DBQuery, sqlstr string, limit, 
     return res, nil
 }
 
+// Get{{ .Name }}sBySQLCount returns count of rows from '{{ .Schema }}.{{ .Table.TableName }}' by your SQL,
+func Get{{ .Name }}sBySQLCount(db pgxdb.DBQuery, sqlstr string, args ...interface{}) (int64, error) {
+	ctx := context.Background()
+
+	start := time.Now()
+
+	countSQL := `SELECT COUNT(*) FROM (` + sqlstr + `) AS count_query`
+
+	var count int64
+	err := db.QueryRow(ctx, countSQL, args...).Scan(&count)
+
+	db.WriteLog(countSQL, time.Since(start), args...)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 // GetLast{{ .Name }} returns last row from '{{ .Schema }}.{{ .Table.TableName }}',
 //
 // errors possible
@@ -494,6 +535,11 @@ func (repo *{{ .Name }}Repository) GetAllWithPagination(limit, offset int) ([]*{
     return GetAll{{ .Name }}WithPagination(repo.db, limit, offset)
 }
 
+// GetAllCount возвращает количество записей
+func (repo *{{ .Name }}Repository) GetAllCount() (int64, error) {
+    return GetAll{{ .Name }}Count(repo.db)
+}
+
 // GetBySQL возвращает записи по произвольному SQL
 func (repo *{{ .Name }}Repository) GetBySQL(sqlstr string, args ...interface{}) ([]*{{ .Name }}, error) {
     return Get{{ .Name }}sBySQL(repo.db, sqlstr, args...)
@@ -502,6 +548,11 @@ func (repo *{{ .Name }}Repository) GetBySQL(sqlstr string, args ...interface{}) 
 // GetBySQLWithPagination возвращает записи по произвольному SQL с пагинацией
 func (repo *{{ .Name }}Repository) GetBySQLWithPagination(sqlstr string, limit, offset int, args ...interface{}) ([]*{{ .Name }}, error) {
     return Get{{ .Name }}sBySQLWithPagination(repo.db, sqlstr, limit, offset, args...)
+}
+
+// GetBySQLCount возвращает количество записей по произвольному SQL
+func (repo *{{ .Name }}Repository) GetBySQLCount(sqlstr string, args ...interface{}) (int64, error) {
+    return Get{{ .Name }}sBySQLCount(repo.db, sqlstr, args...)
 }
 
 // GetLastID возвращает последний ID

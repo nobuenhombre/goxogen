@@ -63,6 +63,33 @@ func {{ .Name }} (db pgxdb.DBQuery{{ range .QueryParams }}, {{ .Name }} {{ .Type
 {{- end }}
 }
 
+// {{ if .Comment }}{{ .Comment }}{{ else }}{{ .Name }}Count runs a custom count query{{ end }}
+func {{ .Name }}Count (db pgxdb.DBQuery{{ range .QueryParams }}, {{ .Name }} {{ .Type }}{{ end }}) (int64, error) {
+	var err error
+
+	start := time.Now()
+
+	ctx := context.Background()
+
+	// sql query
+	var sqlstr = {{ range $i, $l := .Query }}{{ if $i }} +"\n"+{{ end }}{{ if (index $queryComments $i) }} // {{ index $queryComments $i }}{{ end }}{{ if $i }}
+	{{end -}}`{{ $l }}`{{ end }}
+
+	countSQL := `SELECT COUNT(*) FROM (` + sqlstr + `) AS count_query`
+
+	// run query
+	var count int64
+	err = db.QueryRow(ctx, countSQL{{ range .QueryParams }}, {{ .Name }}{{ end }}).Scan(&count)
+
+	db.WriteLog(countSQL, time.Since(start){{ range .QueryParams }}{{ if not .Interpolate }}, {{ .Name }}{{ end }}{{ end }})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 {{ if not .OnlyOne }}
 // {{ if .Comment }}{{ .Comment }} with pagination{{ else }}{{ .Name }}WithPagination runs a custom query with pagination{{ end }}
 func {{ .Name }}WithPagination (db pgxdb.DBQuery{{ range .QueryParams }}, {{ .Name }} {{ .Type }}{{ end }}, limit, offset int) ([]*{{ .Type.Name }}, error) {
@@ -117,6 +144,11 @@ func {{ .Name }}WithPagination (db pgxdb.DBQuery{{ range .QueryParams }}, {{ .Na
 {{ end -}}
 func (repo *{{ $repoName }}) {{ .Name }}({{ range $i, $p := .QueryParams }}{{ if $i }}, {{ end }}{{ $p.Name }} {{ $p.Type }}{{ end }}) ({{ if not .OnlyOne }}[]{{ end }}*{{ .Type.Name }}, error) {
 	return {{ .Name }}(repo.db{{ range .QueryParams }}, {{ .Name }}{{ end }})
+}
+
+// {{ if .Comment }}{{ .Comment }}{{ else }}{{ .Name }}Count runs a custom count query from repository{{ end }}
+func (repo *{{ $repoName }}) {{ .Name }}Count({{ range $i, $p := .QueryParams }}{{ if $i }}, {{ end }}{{ $p.Name }} {{ $p.Type }}{{ end }}) (int64, error) {
+	return {{ .Name }}Count(repo.db{{ range .QueryParams }}, {{ .Name }}{{ end }})
 }
 {{ if not .OnlyOne }}
 // {{ if .Comment }}{{ .Comment }} with pagination{{ else }}{{ .Name }}WithPagination runs a custom query with pagination from repository{{ end }}
