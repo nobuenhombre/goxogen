@@ -57,7 +57,7 @@ func (d *AppDomain) Run() error {
 
 	// Step 1: Run xo generation
 	pt.Increment("XO code generation")
-	err = d.runXO(cs, csuid, outdir, ignoreFields, pkg, templates, queries)
+	err = d.runXO(cs, csuid, outdir, ignoreFields, pkg, templates, queries, pt)
 	if err != nil {
 		pt.AddError(err.Error())
 		pt.Fail()

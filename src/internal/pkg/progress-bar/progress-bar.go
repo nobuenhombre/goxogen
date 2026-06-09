@@ -15,7 +15,19 @@ const (
 	ColorTime    = "\033[1;34m"
 	ColorEta     = "\033[1;35m"
 	ColorReset   = "\033[0m"
+	ColorXoLine  = "\033[38;5;250m" // subtle grey for xo subprocess output
 )
+
+// ANSI cursor-control sequences.
+const (
+	AnsiCursorUp   = "\033[%dA"
+	AnsiClearLine  = "\033[2K\r"
+	AnsiEraseBelow = "\033[J"
+)
+
+// XoWindowLines is the number of fixed lines reserved below the progress
+// bar for displaying xo subprocess output (scrolls bottom-to-top).
+const XoWindowLines = 5
 
 // Progress bar display characters.
 const (
@@ -42,9 +54,13 @@ type ProgressState struct {
 	StartTime   int64 // unix timestamp
 }
 
-// ProgressBar renders the progress bar as a single line (like gobp).
-// Uses \r to overwrite the current line. currentFile is shown at the end
+// ProgressBar renders the progress bar as a single line (like gobp), returning a string
+// that includes \r so it can be printed directly.  currentFile is shown at the end
 // of the bar line, truncated to fit on a standard terminal width.
+//
+// Deprecated for use with xo-window display: when xo subprocess output is visible
+// under the bar the caller should use renderWithXoLines instead, which manages the
+// full 6-line block.
 func (p *ProgressState) ProgressBar(currentFile string) string {
 	if p.Total == 0 {
 		return ""
@@ -123,6 +139,11 @@ type ProgressTracker struct {
 	state     *ProgressState
 	startTime int64
 	errors    []string
+
+	// XoOutputWindow: ring buffer of XoWindowLines lines for xo subprocess output.
+	xoLines  [XoWindowLines]string
+	xoCount  int  // how many lines currently filled (0..XoWindowLines)
+	xoActive bool // whether the xo window has been drawn below the bar
 }
 
 // NewProgressTracker creates a new tracker with a pre-counted total.
@@ -142,6 +163,8 @@ func NewProgressTracker(title string, total int) *ProgressTracker {
 
 // Increment advances the progress by one step and renders the bar.
 // currentFile is shown at the end of the bar line (truncated if long).
+// When the xo window is active (PushXoLine has been called), the full
+// 6-line block (progress bar + 5 xo lines) is redrawn.
 func (pt *ProgressTracker) Increment(currentFile string) {
 	pt.state.Current++
 	if pt.state.Current > pt.state.Total {
@@ -152,7 +175,12 @@ func (pt *ProgressTracker) Increment(currentFile string) {
 	if pt.state.Current > 1 {
 		pt.state.Remaining = int(float64(elapsed) * float64(pt.state.Total-pt.state.Current) / float64(pt.state.Current))
 	}
-	fmt.Print(pt.state.ProgressBar(currentFile))
+
+	if pt.xoActive {
+		pt.renderWithXoLines()
+	} else {
+		fmt.Print(pt.state.ProgressBar(currentFile))
+	}
 }
 
 // AddError records an error line for display when Fail() is called.
@@ -179,10 +207,124 @@ func (pt *ProgressTracker) Fail() {
 	elapsed := int(time.Now().Unix() - pt.startTime)
 	pt.state.Elapsed = elapsed
 
+	// If the xo window is active, first clear the 5 xo lines so
+	// the error summary isn't buried inside the scrolling area.
+	if pt.xoActive {
+		pt.clearXoLines()
+	}
+
 	// Move below the progress bar line
 	fmt.Print("\n")
 	fmt.Print(ErrorLine(pt.state.Errors, elapsed))
 	for _, errLine := range pt.errors {
 		fmt.Println(errLine)
+	}
+}
+
+// renderWithXoLines redraws the progress bar and the 5 xo output lines
+// below it as a single block (6 lines total).  On first call (xoActive is
+// false) the area below the progress bar is first cleared so any prior
+// garbage (e.g. from a previous xo run) doesn't show through.  On
+// subsequent calls the block is overwritten in-place using ANSI cursor-up.
+func (pt *ProgressTracker) renderWithXoLines() {
+	// Move cursor to the start of the progress bar line.
+	// On first call (xoActive == false) we're still on the progress bar
+	// line from the last Increment — no need to go up, but we must clear
+	// whatever trash is below the bar.
+	if pt.xoActive {
+		// After a full render, cursor is on the 5th xo line (XoWindowLines
+		// lines below the progress bar).  Move up by XoWindowLines lines to
+		// reach the progress bar line again — NOT XoWindowLines+1, that
+		// would overshoot and cascade upward.
+		fmt.Printf(AnsiCursorUp, XoWindowLines)
+	} else {
+		// First call: clear everything from the progress bar line down to
+		// the bottom of the terminal so no stale xo output shows through.
+		fmt.Print(AnsiEraseBelow)
+	}
+
+	// Render progress bar (no file label — the xo window below shows
+	// what's being processed).
+	fmt.Print(pt.state.ProgressBar(""))
+
+	// Render the xo lines — always write full XoWindowLines to keep the
+	// terminal scrolling clean.  The ring buffer fills from the bottom
+	// (last xoCount slots have data), so start displaying from the right offset.
+	startIdx := XoWindowLines - pt.xoCount
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	for i := 0; i < XoWindowLines; i++ {
+		fmt.Print("\n") // move to next line
+		fmt.Print(AnsiClearLine)
+		lineIdx := startIdx + i
+		if lineIdx < XoWindowLines && pt.xoLines[lineIdx] != "" {
+			// Truncate long lines to avoid wrapping
+			line := pt.xoLines[lineIdx]
+			if len(line) > 100 {
+				line = line[:100]
+			}
+			fmt.Print(ColorXoLine + line + ColorReset)
+		}
+	}
+
+	pt.xoActive = true
+}
+
+// PushXoLine pushes a new xo subprocess output line into the ring buffer
+// and redraws the progress bar + xo window.  Lines scroll bottom-to-top:
+// old lines shift up, the new line appears at the bottom.
+func (pt *ProgressTracker) PushXoLine(line string) {
+	// Shift existing lines up
+	for i := 0; i < XoWindowLines-1; i++ {
+		pt.xoLines[i] = pt.xoLines[i+1]
+	}
+	pt.xoLines[XoWindowLines-1] = line
+	if pt.xoCount < XoWindowLines {
+		pt.xoCount++
+	}
+
+	pt.renderWithXoLines()
+}
+
+// clearXoLines erases the 5 xo output lines from the terminal without
+// disturbing the progress bar line.  Called by ClearXoOutput and Fail.
+func (pt *ProgressTracker) clearXoLines() {
+	// After renderWithXoLines cursor is on the 5th xo line (line 5,
+	// XoWindowLines \n's below the progress bar).  Go up 5 to line 0.
+	fmt.Printf(AnsiCursorUp, XoWindowLines)
+
+	// Clear 5 lines going down.  The loop clears lines 0-4, and the
+	// trailing \n after each clear leaves cursor on line 5 — which
+	// was NOT cleared.  Clear it explicitly below.
+	for i := 0; i < XoWindowLines; i++ {
+		fmt.Print(AnsiClearLine)
+		fmt.Print("\n")
+	}
+	// Now on line 5 — clear the orphan.
+	fmt.Print(AnsiClearLine)
+
+	// Return to the progress bar line.
+	fmt.Printf(AnsiCursorUp, XoWindowLines)
+}
+
+// ClearXoOutput clears the scrollable xo window from the terminal and
+// resets the internal state so that subsequent Increment calls render
+// a simple single-line progress bar again.  The progress bar itself is
+// redrawn immediately so the screen doesn't go blank during the several
+// seconds between xo basic and the next pipeline step.
+func (pt *ProgressTracker) ClearXoOutput() {
+	if !pt.xoActive {
+		return
+	}
+	pt.clearXoLines()
+	// Redraw the progress bar — clearXoLines clears everything including
+	// the bar line, and without this redraw the terminal stays blank until
+	// the next Increment.
+	fmt.Print(pt.state.ProgressBar(""))
+	pt.xoActive = false
+	pt.xoCount = 0
+	for i := 0; i < XoWindowLines; i++ {
+		pt.xoLines[i] = ""
 	}
 }
