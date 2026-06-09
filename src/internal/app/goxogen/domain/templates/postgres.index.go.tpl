@@ -1,4 +1,5 @@
 {{- $short := (shortname .Type.Name "err" "sqlstr" "db" "q" "res" "db.WriteLog" .Fields) -}}
+{{- $shortResult := (print $short "Val") -}}
 {{- $table := (schema .Schema .Type.Table.TableName) -}}
 {{- $repoName := (print .Type.Name "Repository") -}}
 
@@ -25,13 +26,14 @@ WHERE
 
 	// run query
 {{- if .Index.IsUnique }}
-	{{ $short }} := {{ .Type.Name }}{
+	var {{ $shortResult }} {{ .Type.Name }}
 	{{- if .Type.PrimaryKey }}
-		_exists: true,
-	{{ end -}}
-	}
+	// @crud
+	{{ $shortResult }}._exists = true
+	// @end-crud
+	{{ end }}
 
-	err = db.QueryRow(ctx, sqlstr{{ goparamlist .Fields true false }}).Scan({{ fieldnames .Type.Fields (print "&" $short) }})
+	err = db.QueryRow(ctx, sqlstr{{ goparamlist .Fields true false }}).Scan({{ fieldnames .Type.Fields (print "&" $shortResult) }})
 
 	db.WriteLog(sqlstr, time.Since(start){{ goparamlist .Fields true false }})
 
@@ -39,7 +41,7 @@ WHERE
 		return nil, err
 	}
 
-	return &{{ $short }}, nil
+	return &{{ $shortResult }}, nil
 {{- else }}
 	q, err := db.Query(ctx, sqlstr{{ goparamlist .Fields true false }})
 
@@ -55,7 +57,9 @@ WHERE
 	for q.Next() {
 		{{ $short }} := {{ .Type.Name }}{
 		{{- if .Type.PrimaryKey }}
+		// @crud
 			_exists: true,
+		// @end-crud
 		{{ end -}}
 		}
 
@@ -115,7 +119,9 @@ ORDER BY
 	for q.Next() {
 		{{ $short }} := {{ .Type.Name }}{
 		{{- if .Type.PrimaryKey }}
+		// @crud
 			_exists: true,
+		// @end-crud
 		{{ end -}}
 		}
 

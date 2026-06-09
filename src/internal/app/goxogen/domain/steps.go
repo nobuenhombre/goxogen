@@ -120,6 +120,15 @@ func (d *AppDomain) Run() error {
 		return ge.Pin(fmt.Errorf("clean repo blocks: %w", err))
 	}
 
+	// Step 6b: Deduplicate functions from duplicate indexes
+	pt.Increment("Deduplicate functions from duplicate indexes")
+	err = d.dedupFunctions(outdir)
+	if err != nil {
+		pt.AddError(err.Error())
+		pt.Fail()
+		return ge.Pin(fmt.Errorf("dedup functions: %w", err))
+	}
+
 	// Step 7: Generate aggregate Db{Name}Repo struct (a-db-repo.go)
 	pt.Increment("Generate aggregate DbRepo struct")
 	err = d.generateDbRepo(outdir, cfg)

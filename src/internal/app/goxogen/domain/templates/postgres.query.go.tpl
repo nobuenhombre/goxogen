@@ -28,8 +28,10 @@ func {{ .Name }} (db pgxdb.DBQuery{{ range .QueryParams }}, {{ .Name }} {{ .Type
 		return nil, err
 	}
 
+	// @crud
 	{{ $short }}._exists = true
 	{{ $short }}._deleted = false
+	// @end-crud
 
 	return &{{ $short }}, nil
 {{- else }}
@@ -53,8 +55,10 @@ func {{ .Name }} (db pgxdb.DBQuery{{ range .QueryParams }}, {{ .Name }} {{ .Type
 			return nil, err
 		}
 
+		// @crud
 		{{ $short }}._exists = true
 		{{ $short }}._deleted = false
+		// @end-crud
 
 		res = append(res, &{{ $short }})
 	}
@@ -129,8 +133,10 @@ func {{ .Name }}WithPagination (db pgxdb.DBQuery{{ range .QueryParams }}, {{ .Na
 			return nil, err
 		}
 
+		// @crud
 		{{ $short }}._exists = true
 		{{ $short }}._deleted = false
+		// @end-crud
 
 		res = append(res, &{{ $short }})
 	}

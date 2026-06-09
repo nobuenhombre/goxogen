@@ -77,6 +77,87 @@ type Void struct{}
 type Xid struct{}
 type XML struct{}
 
+// postgis types
+type GeometryPoint struct {
+    Lng float64 `json:"lng"`
+    Lat float64 `json:"lat"`
+}
+
+func (g GeometryPoint) Value() (driver.Value, error) {
+    return fmt.Sprintf("POINT (%f %f)", g.Lng, g.Lat), nil
+}
+
+func (g *GeometryPoint) Scan(value interface{}) error {
+    if value == nil {
+        g.Lng = 0
+        g.Lat = 0
+        return nil
+    }
+
+    var data string
+    switch v := value.(type) {
+    case []byte:
+        data = string(v)
+    case string:
+        data = v
+    default:
+        return fmt.Errorf("GeometryPoint: unsupported type: %T", value)
+    }
+
+    return g.parseWKT(data)
+}
+
+func (g *GeometryPoint) parseWKT(data string) error {
+    // WKT: POINT (x y) or EWKT: SRID=N;POINT (x y)
+    re := regexp.MustCompile(`(?:SRID=\d+;)?\s*POINT\s*\(\s*([\d\.\-eE]+)\s+([\d\.\-eE]+)\s*\)`)
+    matches := re.FindStringSubmatch(data)
+    if matches == nil {
+        return fmt.Errorf("GeometryPoint: cannot parse WKT: %s", data)
+    }
+
+    lng, err := strconv.ParseFloat(matches[1], 64)
+    if err != nil {
+        return fmt.Errorf("GeometryPoint: invalid lng %q: %w", matches[1], err)
+    }
+
+    lat, err := strconv.ParseFloat(matches[2], 64)
+    if err != nil {
+        return fmt.Errorf("GeometryPoint: invalid lat %q: %w", matches[2], err)
+    }
+
+    g.Lng = lng
+    g.Lat = lat
+    return nil
+}
+
+// Geometry stores a PostGIS geometry as WKT string (works with any geometry type:
+// Point, MultiPolygon, LineString, Polygon, etc.).
+type Geometry struct {
+    WKT string `json:"wkt"`
+}
+
+func (g Geometry) Value() (driver.Value, error) {
+    return g.WKT, nil
+}
+
+func (g *Geometry) Scan(value interface{}) error {
+    if value == nil {
+        g.WKT = ""
+        return nil
+    }
+
+    switch v := value.(type) {
+    case []byte:
+        g.WKT = string(v)
+    case string:
+        g.WKT = v
+    default:
+        return fmt.Errorf("Geometry: unsupported type: %T", value)
+    }
+
+    return nil
+}
+
 // information_schema types
 type CharacterData struct{}
 type PgAttribute struct{}

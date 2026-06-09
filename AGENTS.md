@@ -43,7 +43,7 @@ goxogen/
 │   │       │   ├── AGENTS.md
 │   │       │   ├── cli/        # CLI flags: config, log, version
 │   │       │   ├── config/     # YAML config load/save (app-level, generic)
-│   │       │   ├── domain/     # XO pipeline logic (9 steps) + embedded templates
+│   │   │   ├── domain/     # XO pipeline logic (10 steps) + embedded templates
 │   │       │   ├── log/        # Log file redirection
 │   │       │   └── version/    # v0.16.0
 │   │       ├── gobp/           # cli + domain + version
@@ -214,7 +214,8 @@ goxogen runs a full 9-step code generation pipeline from a YAML config (the app 
 3. **glueXoXouid** — Merges `.xo.go` + `.xouid.go` → `.xo-xouid.go`
 4. **extractRepo** — Extracts `@repo-start`/`@repo-end` blocks → `*-repo.xo.go`
 5. **removeXoXouid** — Deletes temp `.xo-xouid.go` files
-6. **cleanXoXouidSourceBlocks** — Removes `@repo-start`/`@repo-end` markers from `.xo.go` and `.xouid.go`
+6. **cleanXoXouidSourceBlocks** — Removes `@repo-start`/`@repo-end` markers from `.xo.go` and `.xouid.go`  
+6b. **dedupFunctions** — Удаляет дубли Go-функций, сгенерированных из разных индексов на одни и те же колонки (оставляет первый вариант)  
 7. **generateDbRepo** — Scans `*-repo.xo.go`, generates `a-db-repo.go` via embedded `a-db-repo.go.tpl` template (`text/template`) with aggregate `Db{DbName}Repo` struct + `NewDb{DbName}Repository` constructor (creates DB connection internally via `pgxdb.NewDB`) + `Close()` method
 8. **generateProvider** — Generates `provider.go` with a Wire `ProviderSet{DbName}` that exposes the aggregate DbRepo constructor as a Wire provider with cleanup
 9. **goFormatCode** — Runs `go fmt`, `goimports -w`, `go vet`

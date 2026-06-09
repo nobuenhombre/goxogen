@@ -9,13 +9,17 @@ type {{ .Name }} struct {
 	{{ .Name }} {{ retype .Type }} `json:"{{ .Col.ColumnName }}"` // {{ .Col.ColumnName }}
 {{- end }}
 
+	// @crud
 	// xo fields
 	_exists, _deleted bool
+	// @end-crud
 }
 
+// @crud
 func (data *{{ .Name }}) SetExists(exists bool) {
 	data._exists = exists
 }
+// @end-crud
 
 // @repo-start
 {{/* ===== Репозиторий ===== */}}

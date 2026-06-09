@@ -99,6 +99,9 @@ func (d *AppDomain) extractRepoFile(outdir, file, pkg string) error {
 	buf.WriteString("type I" + repoName + "Repository interface {\n")
 
 	// Extract method signatures from @repo-start/@repo-end blocks
+	// Deduplicate by method name — multiple indexes on the same columns
+	// generate identical functions, and we only want one entry in the interface.
+	seenMethods := make(map[string]bool)
 	inBlock = false
 	for _, line := range lines {
 		if strings.Contains(line, "// @repo-start") {
@@ -119,8 +122,13 @@ func (d *AppDomain) extractRepoFile(outdir, file, pkg string) error {
 				}
 				// Strip receiver
 				if idx := strings.Index(trimmed, ") "); idx >= 0 {
-					trimmed = "\t" + strings.TrimSpace(trimmed[idx+2:])
+					trimmed = "	" + strings.TrimSpace(trimmed[idx+2:])
 				}
+				// Deduplicate: skip if we've already seen this method signature
+				if seenMethods[trimmed] {
+					continue
+				}
+				seenMethods[trimmed] = true
 				buf.WriteString(trimmed + "\n")
 			}
 		}
