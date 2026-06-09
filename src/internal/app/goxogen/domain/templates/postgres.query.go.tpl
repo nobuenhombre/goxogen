@@ -63,6 +63,7 @@ func {{ .Name }} (db pgxdb.DBQuery{{ range .QueryParams }}, {{ .Name }} {{ .Type
 {{- end }}
 }
 
+{{ if not .OnlyOne }}
 // {{ if .Comment }}{{ .Comment }}{{ else }}{{ .Name }}Count runs a custom count query{{ end }}
 func {{ .Name }}Count (db pgxdb.DBQuery{{ range .QueryParams }}, {{ .Name }} {{ .Type }}{{ end }}) (int64, error) {
 	var err error
@@ -89,6 +90,8 @@ func {{ .Name }}Count (db pgxdb.DBQuery{{ range .QueryParams }}, {{ .Name }} {{ 
 
 	return count, nil
 }
+
+{{ end }}
 
 {{ if not .OnlyOne }}
 // {{ if .Comment }}{{ .Comment }} with pagination{{ else }}{{ .Name }}WithPagination runs a custom query with pagination{{ end }}
@@ -146,10 +149,12 @@ func (repo *{{ $repoName }}) {{ .Name }}({{ range $i, $p := .QueryParams }}{{ if
 	return {{ .Name }}(repo.db{{ range .QueryParams }}, {{ .Name }}{{ end }})
 }
 
+{{ if not .OnlyOne }}
 // {{ if .Comment }}{{ .Comment }}{{ else }}{{ .Name }}Count runs a custom count query from repository{{ end }}
 func (repo *{{ $repoName }}) {{ .Name }}Count({{ range $i, $p := .QueryParams }}{{ if $i }}, {{ end }}{{ $p.Name }} {{ $p.Type }}{{ end }}) (int64, error) {
 	return {{ .Name }}Count(repo.db{{ range .QueryParams }}, {{ .Name }}{{ end }})
 }
+{{ end }}
 {{ if not .OnlyOne }}
 // {{ if .Comment }}{{ .Comment }} with pagination{{ else }}{{ .Name }}WithPagination runs a custom query with pagination from repository{{ end }}
 func (repo *{{ $repoName }}) {{ .Name }}WithPagination({{ if .QueryParams }}{{ range $i, $p := .QueryParams }}{{ if $i }}, {{ end }}{{ $p.Name }} {{ $p.Type }}{{ end }}, {{ end }}limit, offset int) ([]*{{ .Type.Name }}, error) {

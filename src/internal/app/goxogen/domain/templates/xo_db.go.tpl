@@ -146,6 +146,10 @@ func (j Jsonb) Value() (driver.Value, error) {
     return json.Marshal(j.Data)
 }
 
+func (j *JSON) UnmarshalJSON(data []byte) error {
+    return json.Unmarshal(data, &j.Data)
+}
+
 func (j *Jsonb) Scan(value interface{}) error {
     if value == nil {
         j.Data = nil

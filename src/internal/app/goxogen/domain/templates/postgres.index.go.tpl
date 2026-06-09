@@ -132,6 +132,7 @@ ORDER BY
 }
 {{ end }}
 
+{{ if not .Index.IsUnique }}
 // Get{{ .FuncName }}Count retrieves count of rows from '{{ $table }}' by index '{{ .Index.IndexName }}'.
 func Get{{ .FuncName }}Count(db pgxdb.DBQuery{{ goparamlist .Fields true true }}) (int64, error) {
 	var err error
@@ -163,6 +164,7 @@ WHERE
 
 	return count, nil
 }
+{{ end }}
 
 // ----- Index Methods for {{ .Type.Name }} -----
 
@@ -172,11 +174,6 @@ WHERE
     // Get{{ .FuncName }} возвращает одну запись по индексу '{{ .Index.IndexName }}'.
     func (repo *{{ $repoName }}) Get{{ .FuncName }}({{ goparamlist .Fields false true }}) (*{{ .Type.Name }}, error) {
         return Get{{ .FuncName }}(repo.db{{ goparamlist .Fields true false }})
-    }
-
-    // Get{{ .FuncName }}Count возвращает количество записей по индексу '{{ .Index.IndexName }}'.
-    func (repo *{{ $repoName }}) Get{{ .FuncName }}Count({{ goparamlist .Fields false true }}) (int64, error) {
-        return Get{{ .FuncName }}Count(repo.db{{ goparamlist .Fields true false }})
     }
 {{- end }}
 
