@@ -18,10 +18,15 @@ func New(cliConfig cli.Service) DomainService {
 	}
 }
 
-// countPipelineSteps returns the total number of top-level pipeline steps (9).
-// Matches the 9 steps in Run(): runXO, replaceInterfaceToAny, glueXoXouid,
+// countPipelineSteps returns the total number of top-level pipeline steps.
+// Base count is 9: runXO, replaceInterfaceToAny, glueXoXouid,
 // extractRepo, removeXoXouid, cleanXoXouidSourceBlocks, generateDbRepo,
 // generateProvider, goFormatCode.
+// When DbIsReadonly is true, there's an extra step: removeCRUDBlocks.
 func (d *AppDomain) countPipelineSteps(cfg *XOConfig) (int, error) {
-	return 9, nil
+	steps := 9
+	if cfg.Config.Codegen.DbIsReadonly {
+		steps++
+	}
+	return steps, nil
 }

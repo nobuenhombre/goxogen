@@ -11,12 +11,15 @@ type {{ .Name }} struct {
 {{- end }}
 {{- if .PrimaryKey }}
 
+	// @crud
 	// xo fields
 	_exists, _deleted bool
+	// @end-crud
 {{ end }}
 }
 
 {{ if .PrimaryKey }}
+// @crud
 // Exists determines if the {{ .Name }} exists in the database.
 func ({{ $short }} *{{ .Name }}) Exists() bool {
 	return {{ $short }}._exists
@@ -31,7 +34,9 @@ func ({{ $short }} *{{ .Name }}) SetExists(exists bool) {
 func ({{ $short }} *{{ .Name }}) Deleted() bool {
 	return {{ $short }}._deleted
 }
+// @end-crud
 
+// @crud
 // Insert inserts the {{ .Name }} to the database.
 func ({{ $short }} *{{ .Name }}) Insert(db pgxdb.DBQuery) error {
 	var err error
@@ -90,7 +95,9 @@ INSERT INTO {{ $table }} (
 
 	return nil
 }
+// @end-crud
 
+// @crud
 {{ if ne (fieldnamesmulti .Fields $short .PrimaryKeyFields) "" }}
 	// Update updates the {{ .Name }} in the database.
 	func ({{ $short }} *{{ .Name }}) Update(db pgxdb.DBQuery) error {
@@ -209,7 +216,9 @@ INSERT INTO {{ $table }} (
 {{ else }}
 	// Update statements omitted due to lack of fields other than primary key
 {{ end }}
+// @end-crud
 
+// @crud
 // Delete deletes the {{ .Name }} from the database.
 func ({{ $short }} *{{ .Name }}) Delete(db pgxdb.DBQuery) error {
 	var err error
@@ -274,6 +283,7 @@ func (repo *{{ .Name }}Repository) Delete({{ $short }} *{{ .Name }}) error {
     return {{ $short }}.Delete(repo.db)
 }
 // @repo-end
+// @end-crud
 
 {{- end }}
 
@@ -313,7 +323,9 @@ ORDER BY
         }
 
         {{- if .PrimaryKey }}
+        // @crud
         {{ $short }}.SetExists(true)
+        // @end-crud
         {{- end }}
 
         res = append(res, &{{ $short }})
@@ -359,7 +371,9 @@ LIMIT $1 OFFSET $2
         }
 
         {{- if .PrimaryKey }}
+        // @crud
         {{ $short }}.SetExists(true)
+        // @end-crud
         {{- end }}
 
         res = append(res, &{{ $short }})
@@ -506,8 +520,10 @@ LIMIT 1
     }
 
     {{- if .PrimaryKey }}
+    // @crud
     {{ $short }}._exists = true
     {{ $short }}._deleted = false
+    // @end-crud
     {{- end }}
 
     return &{{ $short }}, nil

@@ -29,6 +29,7 @@ type XOConfig struct {
 			Queries      string `yaml:"queries"`
 			IgnoreFields string `yaml:"ignore_fields,omitempty"`
 			DbName       string `yaml:"db_name,omitempty"`
+			DbIsReadonly bool   `yaml:"db_is_readonly,omitempty"`
 		} `yaml:"codegen"`
 	} `yaml:"config"`
 }

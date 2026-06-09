@@ -64,6 +64,17 @@ func (d *AppDomain) Run() error {
 		return ge.Pin(fmt.Errorf("xo generation: %w", err))
 	}
 
+	// Step 1b: Remove CRUD blocks (readonly mode)
+	if cfg.Config.Codegen.DbIsReadonly {
+		pt.Increment("Remove CRUD blocks (readonly mode)")
+		err = d.removeCRUDBlocks(outdir)
+		if err != nil {
+			pt.AddError(err.Error())
+			pt.Fail()
+			return ge.Pin(fmt.Errorf("remove crud blocks: %w", err))
+		}
+	}
+
 	// Step 2: Replace interface{} with any
 	pt.Increment("Replace interface{} with any")
 	err = d.replaceInterfaceToAny(outdir)
