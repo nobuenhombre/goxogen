@@ -169,7 +169,13 @@ type JSON struct {
     Data interface{}
 }
 
+// Value возвращает SQL NULL, когда данные не заполнены: json.Marshal(nil) записал бы в колонку
+// значение json-null, а не пустую ячейку, и запрос «где значение не заполнено» по is null его не нашел бы.
 func (j JSON) Value() (driver.Value, error) {
+    if j.Data == nil {
+        return nil, nil
+    }
+
     return json.Marshal(j.Data)
 }
 

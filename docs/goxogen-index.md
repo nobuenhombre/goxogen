@@ -17,7 +17,7 @@
 | Конфиг YAML | [internal/app/goxogen/config/config.md](internal/app/goxogen/config/config.md) | Каркас Load/Save; реальная конфигурация пайплайна — в domain (`xo-config.go`) |
 | Domain — XO-пайплайн | [internal/app/goxogen/domain/domain.md](internal/app/goxogen/domain/domain.md) | 10 шагов генерации (+1 readonly), `XOConfig`, 16 embedded-шаблонов |
 | Лог-файл | [internal/app/goxogen/log/log.md](internal/app/goxogen/log/log.md) | Перенаправление stdlib-логгера в файл (флаг `-log`) |
-| Версия | [internal/app/goxogen/version/version.md](internal/app/goxogen/version/version.md) | `v0.44.0` (const, источник истины — `version.go`) |
+| Версия | [internal/app/goxogen/version/version.md](internal/app/goxogen/version/version.md) | `v0.46.0` (const, источник истины — `version.go`) |
 
 ## Общие пакеты
 

@@ -298,8 +298,13 @@ func GetAll{{ .Name }}(db pgxdb.DBQuery) ([]*{{ .Name }}, error) {
 SELECT
 {{ colnames .Fields }}
 FROM {{ $table }}
+{{- if .PrimaryKey }}
+ORDER BY
+	{{ colname .PrimaryKey.Col }} ASC
+{{- else if hascolumn .Fields "id" }}
 ORDER BY
 	id ASC
+{{- end }}
 `
 
     q, err := db.Query(ctx, sqlstr)
@@ -345,8 +350,13 @@ func GetAll{{ .Name }}WithPagination(db pgxdb.DBQuery, limit, offset int) ([]*{{
 SELECT
 {{ colnames .Fields }}
 FROM {{ $table }}
+{{- if .PrimaryKey }}
+ORDER BY
+	{{ colname .PrimaryKey.Col }} ASC
+{{- else if hascolumn .Fields "id" }}
 ORDER BY
 	id ASC
+{{- end }}
 LIMIT $1 OFFSET $2
 `
 
@@ -505,8 +515,13 @@ func GetLastID{{ .Name }}(db pgxdb.DBQuery) (*{{ .Name }}, error) {
 SELECT
 {{ colnames .Fields }}
 FROM {{ $table }}
+{{- if .PrimaryKey }}
+ORDER BY
+{{ colname .PrimaryKey.Col }} DESC
+{{- else if hascolumn .Fields "id" }}
 ORDER BY
 id DESC
+{{- end }}
 LIMIT 1
 `
 
