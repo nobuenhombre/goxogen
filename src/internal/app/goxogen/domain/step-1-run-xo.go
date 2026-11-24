@@ -12,11 +12,27 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	progressbar "goxogen/src/internal/pkg/progress-bar"
 
 	"github.com/nobuenhombre/suikat/pkg/ge"
 )
+
+const (
+	retryAttempts = 5
+	retryDelay    = time.Second
+)
+
+// networkFailureMarkers lists the messages a broken TCP connection leaves in
+// the output of xo or xouid. They come from the network layer rather than from
+// the SQL itself, so the same command is worth running again.
+var networkFailureMarkers = []string{
+	"connection reset by peer",
+	"broken pipe",
+	"unexpected EOF",
+	"i/o timeout",
+}
 
 // runXO orchestrates all xo/xouid sub-process calls.
 func (d *AppDomain) runXO(cs, csuid, outdir, ignoreFields, pkg, templates, queries string, pt *progressbar.ProgressTracker) error {
@@ -80,9 +96,11 @@ func (d *AppDomain) runXoBasic(cs, outdir, ignoreFields, pkg, templates string, 
 	cmdStr := "xo " + strings.Join(args, " ")
 	log.Printf("[xo] Running: %s", cmdStr)
 
-	cmd := exec.Command("xo", args...)
+	newCmd := func() *exec.Cmd {
+		return exec.Command("xo", args...)
+	}
 
-	outputBuf, err := d.runXoStreamCmd(cmd, pt, cmdStr)
+	outputBuf, err := d.runXoStreamCmd(newCmd, pt, cmdStr)
 	if err != nil {
 		return ge.Pin(fmt.Errorf("xo command failed: %w\n%s", err, outputBuf))
 	}
@@ -147,16 +165,19 @@ func (d *AppDomain) runXoQueries(cs, outdir, ignoreFields, querydir, pkg, templa
 		cmdStr := "xo " + strings.Join(args, " ") + " < " + filename
 		log.Printf("[xo] Running: %s", cmdStr)
 
-		cmd := exec.Command("xo", args...)
-
 		// Read SQL from file
 		sqlData, err := os.ReadFile(filename)
 		if err != nil {
 			return ge.Pin(fmt.Errorf("reading %s: %w", filename, err))
 		}
-		cmd.Stdin = strings.NewReader(string(sqlData))
 
-		outputBuf, err := d.runXoStreamCmd(cmd, pt, cmdStr)
+		newCmd := func() *exec.Cmd {
+			cmd := exec.Command("xo", args...)
+			cmd.Stdin = strings.NewReader(string(sqlData))
+			return cmd
+		}
+
+		outputBuf, err := d.runXoStreamCmd(newCmd, pt, cmdStr)
 		if err != nil {
 			return ge.Pin(fmt.Errorf("xo query %s failed: %w\n%s", filename, err, outputBuf))
 		}
@@ -205,10 +226,18 @@ func (d *AppDomain) runXoQueriesUID(dsn, outdir, querydir, pkg, templates string
 		cmdStr := "xouid " + strings.Join(args, " ")
 		log.Printf("[xo] Running: %s", cmdStr)
 
-		cmd := exec.Command("/usr/local/bin/xouid", args...)
-		output, err := cmd.CombinedOutput()
+		attempt := func() (string, error) {
+			cmd := exec.Command("/usr/local/bin/xouid", args...)
+			output, runErr := cmd.CombinedOutput()
+			if runErr != nil {
+				return string(output), ge.Pin(fmt.Errorf("xouid query %s failed: %w\n%s", filename, runErr, string(output)))
+			}
+			return string(output), nil
+		}
+
+		_, err = runWithNetworkRetry(attempt)
 		if err != nil {
-			return ge.Pin(fmt.Errorf("xouid query %s failed: %w\n%s", filename, err, string(output)))
+			return err
 		}
 	}
 
@@ -269,11 +298,79 @@ func isXoObjectName(line string) (string, bool) {
 	return line, true
 }
 
+// networkFailureMarker returns the network level message found in the command
+// output, or an empty string when the output names no such message. A marker
+// means that the server dropped the already established TCP connection: such
+// a failure says nothing about the SQL or the schema, so running the same
+// command again normally succeeds.
+func networkFailureMarker(output string) string {
+	for _, marker := range networkFailureMarkers {
+		if strings.Contains(output, marker) {
+			return marker
+		}
+	}
+
+	return ""
+}
+
+// runWithNetworkRetry calls attempt and repeats the call while the failure is
+// a dropped TCP connection and attempts are left. Between attempts it waits
+// retryDelay, and it makes at most retryAttempts calls in total. It returns
+// the output and the error of the last call, so the caller reports the real
+// command error only after every attempt has failed. The attempt function
+// takes no arguments because each call has to build a fresh command:
+// exec.Cmd cannot be started twice.
+func runWithNetworkRetry(attempt func() (string, error)) (string, error) {
+	var output string
+	var err error
+
+	for attemptNumber := 1; attemptNumber <= retryAttempts; attemptNumber++ {
+		output, err = attempt()
+		if err == nil {
+			return output, nil
+		}
+
+		marker := networkFailureMarker(output)
+		if marker == "" {
+			return output, err
+		}
+		if attemptNumber == retryAttempts {
+			return output, err
+		}
+
+		log.Printf("[xo] network error (%s), retry %d of %d in %s", marker, attemptNumber, retryAttempts-1, retryDelay)
+		time.Sleep(retryDelay)
+	}
+
+	return output, err
+}
+
 // runXoStreamCmd starts a command and streams its stdout+stderr output
 // line-by-line through the xo window (with isXoObjectName filtering).
-// Returns the captured output string and any error from the command.
+// When the command fails because the database connection was reset, the
+// command is started again after retryDelay, up to retryAttempts
+// attempts in total; newCmd builds a fresh command before every attempt.
+// Returns the captured output string of the last attempt and its error.
 // The caller is responsible for calling pt.ClearXoOutput() when done.
-func (d *AppDomain) runXoStreamCmd(cmd *exec.Cmd, pt *progressbar.ProgressTracker, cmdLabel string) (string, error) {
+func (d *AppDomain) runXoStreamCmd(newCmd func() *exec.Cmd, pt *progressbar.ProgressTracker, cmdLabel string) (string, error) {
+	attempt := func() (string, error) {
+		return d.runXoStreamCmdOnce(newCmd(), pt, cmdLabel)
+	}
+
+	outputBuf, err := runWithNetworkRetry(attempt)
+	if err != nil {
+		return outputBuf, err
+	}
+
+	return "", nil
+}
+
+// runXoStreamCmdOnce performs a single attempt of runXoStreamCmd: it
+// starts the given command, copies its stdout and stderr into one pipe
+// and reads that pipe line by line. Lines that name a database object
+// are pushed into the xo window, and the whole output is collected in a
+// buffer. It returns that buffer and the error of the command itself.
+func (d *AppDomain) runXoStreamCmdOnce(cmd *exec.Cmd, pt *progressbar.ProgressTracker, cmdLabel string) (string, error) {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", ge.Pin(fmt.Errorf("stdout pipe: %w", err))
