@@ -32,6 +32,8 @@ var networkFailureMarkers = []string{
 	"broken pipe",
 	"unexpected EOF",
 	"i/o timeout",
+	"no route to host",
+	"network is unreachable",
 }
 
 // runXO orchestrates all xo/xouid sub-process calls.

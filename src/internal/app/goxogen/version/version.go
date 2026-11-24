@@ -1,4 +1,4 @@
 package version
 
 // Version is the current application version following SemVer format.
-const Version = "v0.46.1"
+const Version = "v0.46.2"
